@@ -75,6 +75,14 @@ spec:
 
           # 只注入启动必需的敏感配置（AI/Lark 已移至 DB，不再需要 Secret 注入）
           env:
+            - name: SREAGENT_DATABASE_HOST
+              value: "mysql-svc"
+            - name: SREAGENT_DATABASE_PORT
+              value: "3306"
+            - name: SREAGENT_REDIS_HOST
+              value: "redis"
+            - name: SREAGENT_REDIS_PORT
+              value: "6379"
             - name: SREAGENT_DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
