@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, h, inject, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, h, inject, onMounted, onUnmounted } from 'vue'
 import type { Ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { NIcon, useMessage } from 'naive-ui'
@@ -122,8 +122,7 @@ const menuOptions = computed<MenuOption[]>(() => {
   return items
 })
 
-const activeKey = computed(() => {
-  const p = route.path
+function resolveActiveKey(p: string): string {
   if (p.startsWith('/alerts/rules'))                    return '/alerts/rules'
   if (p.startsWith('/alerts/events'))                   return '/alerts/events'
   if (p.startsWith('/alerts/history'))                  return '/alerts/history'
@@ -134,9 +133,24 @@ const activeKey = computed(() => {
   if (p.startsWith('/notification/templates'))          return '/notification/templates'
   if (p.startsWith('/notification/subscribe'))          return '/notification/subscribe'
   return p
-})
+}
 
-function handleMenuClick(key: string) { router.push(key) }
+// menuSelectedKey is driven by the route but can be briefly cleared so that
+// Naive UI's n-menu always fires @update:value (it suppresses the event when
+// the clicked key equals the current :value — this causes the "clicking
+// Settings does nothing" bug when the user is already on /settings).
+const menuSelectedKey = ref(resolveActiveKey(route.path))
+watch(
+  () => route.path,
+  (p) => { menuSelectedKey.value = resolveActiveKey(p) },
+)
+
+function handleMenuClick(key: string) {
+  // Temporarily clear the selected key so n-menu will fire @update:value
+  // even if the user clicks the item that is already active.
+  menuSelectedKey.value = ''
+  router.push(key)
+}
 
 // ===== Language =====
 const langOptions = [
@@ -346,7 +360,7 @@ async function toggleNotifyConfig(cfg: UserNotifyConfig, enabled: boolean) {
         :collapsed-width="64"
         :collapsed-icon-size="22"
         :options="menuOptions"
-        :value="activeKey"
+        :value="menuSelectedKey"
         @update:value="handleMenuClick"
       />
     </n-layout-sider>
