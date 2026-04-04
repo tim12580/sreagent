@@ -58,8 +58,9 @@ spec:
 
       containers:
         - name: sreagent
-          # Set via: kubectl set image deployment/sreagent sreagent=<registry>/sreagent:<tag>
-          image: ghcr.io/sreagent/sreagent:latest
+          # 替换为你的 Docker Hub 用户名，例如: johndoe/sreagent:latest
+          # 或使用具体版本号: johndoe/sreagent:v1.0.5
+          image: your-dockerhub-username/sreagent:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
