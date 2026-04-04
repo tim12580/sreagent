@@ -119,6 +119,19 @@ func Load(cfgFile string) (*Config, error) {
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 
+	// Explicitly bind env vars for sensitive fields that may be absent from
+	// the config file. Viper's AutomaticEnv only works for keys already
+	// registered in the config file; BindEnv ensures these are always read
+	// from the environment regardless.
+	_ = viper.BindEnv("database.password", "SREAGENT_DATABASE_PASSWORD")
+	_ = viper.BindEnv("database.host", "SREAGENT_DATABASE_HOST")
+	_ = viper.BindEnv("database.port", "SREAGENT_DATABASE_PORT")
+	_ = viper.BindEnv("database.username", "SREAGENT_DATABASE_USERNAME")
+	_ = viper.BindEnv("redis.password", "SREAGENT_REDIS_PASSWORD")
+	_ = viper.BindEnv("redis.host", "SREAGENT_REDIS_HOST")
+	_ = viper.BindEnv("redis.port", "SREAGENT_REDIS_PORT")
+	_ = viper.BindEnv("jwt.secret", "SREAGENT_JWT_SECRET")
+
 	if err := viper.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
