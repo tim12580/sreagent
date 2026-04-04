@@ -17,6 +17,8 @@ on:
 env:
   # 替换为你的 Docker Hub 用户名/镜像名
   IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/sreagent
+  # actions/checkout、actions/setup-node 等升级到 Node.js 24 运行时
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   # ──────────────────────────────────────────────────────────
