@@ -61,6 +61,15 @@ func (d *DatabaseConfig) DSN() string {
 		d.Username, d.Password, d.Host, d.Port, d.Database, d.Charset)
 }
 
+// MigrateDSN returns a DSN with multiStatements=true, required by
+// golang-migrate's MySQL driver which executes the entire migration file
+// as a single db.ExecContext call. The main app connection uses DSN()
+// without this flag to avoid security exposure.
+func (d *DatabaseConfig) MigrateDSN() string {
+	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=%s&parseTime=True&loc=Local&multiStatements=true",
+		d.Username, d.Password, d.Host, d.Port, d.Database, d.Charset)
+}
+
 type RedisConfig struct {
 	Host     string `mapstructure:"host"`
 	Port     int    `mapstructure:"port"`

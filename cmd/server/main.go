@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"flag"
 	"fmt"
 	"net/http"
@@ -13,9 +14,11 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/crypto/bcrypt"
-	"gorm.io/driver/mysql"
+	gormmysql "gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+
+	_ "github.com/go-sql-driver/mysql"
 
 	"github.com/sreagent/sreagent/internal/config"
 	"github.com/sreagent/sreagent/internal/engine"
@@ -55,14 +58,20 @@ func main() {
 		zapLogger.Fatal("failed to initialize database", zap.Error(err))
 	}
 
-	// Run database migrations (golang-migrate, version-tracked)
-	sqlDB, err := db.DB()
+	// Run database migrations (golang-migrate, version-tracked).
+	// golang-migrate's MySQL driver executes the entire .sql file in a single
+	// db.ExecContext call, so the connection must have multiStatements=true.
+	// We open a dedicated connection for this purpose and close it immediately
+	// after migrations complete; the main app connection (db) is unaffected.
+	migrateDB, err := sql.Open("mysql", cfg.Database.MigrateDSN())
 	if err != nil {
-		zapLogger.Fatal("failed to get sql.DB for migrations", zap.Error(err))
+		zapLogger.Fatal("failed to open migration db connection", zap.Error(err))
 	}
-	if err := dbmigrate.RunMigrations(sqlDB, cfg.Database.Database, zapLogger); err != nil {
+	if err := dbmigrate.RunMigrations(migrateDB, cfg.Database.Database, zapLogger); err != nil {
+		_ = migrateDB.Close()
 		zapLogger.Fatal("database migration failed", zap.Error(err))
 	}
+	_ = migrateDB.Close()
 
 	// Auto-migrate any models not covered by SQL migrations (development safety net)
 	if err := autoMigrate(db); err != nil {
@@ -366,7 +375,7 @@ func initDatabase(cfg config.DatabaseConfig) (*gorm.DB, error) {
 		gormLogLevel = logger.Info
 	}
 
-	db, err := gorm.Open(mysql.Open(cfg.DSN()), &gorm.Config{
+	db, err := gorm.Open(gormmysql.Open(cfg.DSN()), &gorm.Config{
 		Logger: logger.Default.LogMode(gormLogLevel),
 	})
 	if err != nil {
