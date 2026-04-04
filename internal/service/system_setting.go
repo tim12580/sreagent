@@ -43,6 +43,7 @@ type LarkConfig struct {
 const (
 	groupAI   = "ai"
 	groupLark = "lark"
+	groupOIDC = "oidc"
 
 	// cacheTTL is how long a cached config entry is considered fresh.
 	cacheTTL = 30 * time.Second
@@ -59,9 +60,24 @@ var sensitiveKeys = map[string]bool{
 	"lark.app_secret":         true,
 	"lark.verification_token": true,
 	"lark.encrypt_key":        true,
+	"oidc.client_secret":      true,
 }
 
-// cachedConfig is a generic TTL-cached value.
+// OIDCConfigDB holds OIDC/SSO integration configuration stored in the DB.
+// This mirrors config.OIDCConfig but is persisted in the system_settings table,
+// allowing admins to update it via the UI without redeploying.
+type OIDCConfigDB struct {
+	Enabled       bool   `json:"enabled"`
+	IssuerURL     string `json:"issuer_url"`
+	ClientID      string `json:"client_id"`
+	ClientSecret  string `json:"client_secret"`
+	RedirectURL   string `json:"redirect_url"`
+	Scopes        string `json:"scopes"`         // comma-separated, e.g. "openid,profile,email"
+	RoleClaim     string `json:"role_claim"`     // default "realm_access.roles"
+	RoleMapping   string `json:"role_mapping"`   // JSON object string, e.g. {"sre-admin":"admin"}
+	DefaultRole   string `json:"default_role"`   // default "viewer"
+	AutoProvision bool   `json:"auto_provision"` // default true
+}
 type cachedConfig[T any] struct {
 	value     T
 	expiresAt time.Time
@@ -89,6 +105,9 @@ type SystemSettingService struct {
 
 	larkMu    sync.RWMutex
 	larkCache cachedConfig[LarkConfig]
+
+	oidcMu    sync.RWMutex
+	oidcCache cachedConfig[OIDCConfigDB]
 }
 
 // NewSystemSettingService creates a new SystemSettingService.
@@ -350,6 +369,79 @@ func (s *SystemSettingService) SaveLarkConfig(ctx context.Context, cfg LarkConfi
 	return nil
 }
 
+// ---- OIDC config -------------------------------------------------------------
+
+// GetOIDCConfig loads the OIDC configuration from cache or DB.
+// Cache TTL is cacheTTL (30 s); writes invalidate the cache immediately.
+// Returns empty struct (Enabled=false) if no settings have been saved yet.
+func (s *SystemSettingService) GetOIDCConfig(ctx context.Context) (OIDCConfigDB, error) {
+	// Fast path: read from cache.
+	s.oidcMu.RLock()
+	if s.oidcCache.valid() {
+		cfg := s.oidcCache.value
+		s.oidcMu.RUnlock()
+		return cfg, nil
+	}
+	s.oidcMu.RUnlock()
+
+	// Slow path: load from DB and repopulate cache.
+	kv, err := s.repo.ListByGroup(ctx, groupOIDC)
+	if err != nil {
+		return OIDCConfigDB{}, err
+	}
+	cfg := OIDCConfigDB{
+		Enabled:       parseBool(kv["enabled"]),
+		IssuerURL:     kv["issuer_url"],
+		ClientID:      kv["client_id"],
+		ClientSecret:  s.getDecrypted(groupOIDC, "client_secret", kv["client_secret"]),
+		RedirectURL:   kv["redirect_url"],
+		Scopes:        strDef(kv["scopes"], "openid,profile,email"),
+		RoleClaim:     strDef(kv["role_claim"], "realm_access.roles"),
+		RoleMapping:   kv["role_mapping"],
+		DefaultRole:   strDef(kv["default_role"], "viewer"),
+		AutoProvision: parseBoolDef(kv["auto_provision"], true),
+	}
+
+	s.oidcMu.Lock()
+	s.oidcCache = cachedConfig[OIDCConfigDB]{value: cfg, expiresAt: time.Now().Add(cacheTTL)}
+	s.oidcMu.Unlock()
+
+	return cfg, nil
+}
+
+// SaveOIDCConfig persists all OIDC configuration keys to the DB and invalidates cache.
+// Empty client_secret means "do not overwrite the existing secret".
+func (s *SystemSettingService) SaveOIDCConfig(ctx context.Context, cfg OIDCConfigDB) error {
+	kv := map[string]string{
+		"enabled":        strconv.FormatBool(cfg.Enabled),
+		"issuer_url":     cfg.IssuerURL,
+		"client_id":      cfg.ClientID,
+		"redirect_url":   cfg.RedirectURL,
+		"scopes":         cfg.Scopes,
+		"role_claim":     cfg.RoleClaim,
+		"role_mapping":   cfg.RoleMapping,
+		"default_role":   cfg.DefaultRole,
+		"auto_provision": strconv.FormatBool(cfg.AutoProvision),
+	}
+	// Only save client_secret when caller provided a non-empty value.
+	if cfg.ClientSecret != "" {
+		enc, err := s.setEncrypted(groupOIDC, "client_secret", cfg.ClientSecret)
+		if err != nil {
+			s.logger.Error("failed to encrypt oidc.client_secret", zap.Error(err))
+			return err
+		}
+		kv["client_secret"] = enc
+	}
+	if err := s.repo.SetGroup(ctx, groupOIDC, kv); err != nil {
+		return err
+	}
+	// Invalidate cache so the next read fetches fresh data.
+	s.oidcMu.Lock()
+	s.oidcCache = cachedConfig[OIDCConfigDB]{}
+	s.oidcMu.Unlock()
+	return nil
+}
+
 // ---- helpers -----------------------------------------------------------------
 
 func strDef(v, def string) string {
@@ -361,5 +453,17 @@ func strDef(v, def string) string {
 
 func parseBool(v string) bool {
 	b, _ := strconv.ParseBool(v)
+	return b
+}
+
+// parseBoolDef parses a bool string with a default value when the string is empty.
+func parseBoolDef(v string, def bool) bool {
+	if v == "" {
+		return def
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return def
+	}
 	return b
 }

@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -151,18 +153,63 @@ func main() {
 
 	larkBotSvc := service.NewLarkBotService(settingSvc, eventSvc, scheduleSvc, zapLogger)
 
-	// Initialize OIDC service (optional)
+	// Initialize OIDC service (optional).
+	// Priority: DB settings (set via UI) override configmap/env values.
+	// This allows admins to reconfigure OIDC without redeploying.
+	// NOTE: changes to DB settings require a pod restart to take effect
+	// (the OIDC provider client is initialized once at startup).
 	var oidcSvc *service.OIDCService
-	if cfg.OIDC.Enabled {
-		svc, err := service.NewOIDCService(context.Background(), &cfg.OIDC, &cfg.JWT, userRepo, zapLogger)
+	{
+		oidcCfg := &cfg.OIDC // start with configmap/env values as baseline
+
+		// Attempt to load from DB; merge if DB has a record.
+		dbOIDC, err := settingSvc.GetOIDCConfig(context.Background())
 		if err != nil {
-			zapLogger.Error("failed to initialize OIDC service, SSO login will be unavailable", zap.Error(err))
-		} else {
-			oidcSvc = svc
-			zapLogger.Info("OIDC service initialized",
-				zap.String("issuer", cfg.OIDC.IssuerURL),
-				zap.String("client_id", cfg.OIDC.ClientID),
-			)
+			zapLogger.Warn("could not load OIDC config from DB, using configmap values", zap.Error(err))
+		} else if dbOIDC.IssuerURL != "" || dbOIDC.Enabled {
+			// DB has been configured — use DB values, falling back to configmap for any empty field.
+			merged := config.OIDCConfig{
+				Enabled:       dbOIDC.Enabled,
+				IssuerURL:     firstNonEmpty(dbOIDC.IssuerURL, cfg.OIDC.IssuerURL),
+				ClientID:      firstNonEmpty(dbOIDC.ClientID, cfg.OIDC.ClientID),
+				ClientSecret:  firstNonEmpty(dbOIDC.ClientSecret, cfg.OIDC.ClientSecret),
+				RedirectURL:   firstNonEmpty(dbOIDC.RedirectURL, cfg.OIDC.RedirectURL),
+				RoleClaim:     firstNonEmpty(dbOIDC.RoleClaim, cfg.OIDC.RoleClaim),
+				DefaultRole:   firstNonEmpty(dbOIDC.DefaultRole, cfg.OIDC.DefaultRole),
+				AutoProvision: dbOIDC.AutoProvision,
+			}
+			// Parse scopes from DB (comma-separated string).
+			if dbOIDC.Scopes != "" {
+				merged.Scopes = splitScopes(dbOIDC.Scopes)
+			} else {
+				merged.Scopes = cfg.OIDC.Scopes
+			}
+			// Parse role_mapping from DB (JSON string → map).
+			if dbOIDC.RoleMapping != "" {
+				if rm, parseErr := parseRoleMapping(dbOIDC.RoleMapping); parseErr != nil {
+					zapLogger.Warn("invalid OIDC role_mapping in DB, ignoring", zap.Error(parseErr))
+					merged.RoleMapping = cfg.OIDC.RoleMapping
+				} else {
+					merged.RoleMapping = rm
+				}
+			} else {
+				merged.RoleMapping = cfg.OIDC.RoleMapping
+			}
+			oidcCfg = &merged
+			zapLogger.Info("OIDC config loaded from DB (DB values take precedence over configmap)")
+		}
+
+		if oidcCfg.Enabled {
+			svc, err := service.NewOIDCService(context.Background(), oidcCfg, &cfg.JWT, userRepo, zapLogger)
+			if err != nil {
+				zapLogger.Error("failed to initialize OIDC service, SSO login will be unavailable", zap.Error(err))
+			} else {
+				oidcSvc = svc
+				zapLogger.Info("OIDC service initialized",
+					zap.String("issuer", oidcCfg.IssuerURL),
+					zap.String("client_id", oidcCfg.ClientID),
+				)
+			}
 		}
 	}
 
@@ -267,6 +314,7 @@ func main() {
 	handlers := &router.Handlers{
 		Auth:             func() *handler.AuthHandler { h := handler.NewAuthHandler(authSvc); h.SetUserService(userSvc); return h }(),
 		OIDC:             oidcHandler,
+		OIDCSettings:     handler.NewOIDCSettingsHandler(settingSvc),
 		DataSource:       handler.NewDataSourceHandler(dsSvc),
 		AlertRule:        handler.NewAlertRuleHandler(ruleSvc),
 		AlertEvent:       handler.NewAlertEventHandler(eventSvc),
@@ -456,4 +504,36 @@ func seedAdminUser(db *gorm.DB, logger *zap.Logger) {
 	}
 
 	logger.Info("seeded default admin user (admin/admin123)")
+}
+
+// firstNonEmpty returns the first non-empty string from the arguments.
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// splitScopes splits a comma-separated scopes string into a slice, trimming spaces.
+func splitScopes(s string) []string {
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if t := strings.TrimSpace(p); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// parseRoleMapping parses a JSON object string into a map[string]string.
+// e.g. `{"sre-admin":"admin","sre-member":"member"}` → map
+func parseRoleMapping(s string) (map[string]string, error) {
+	var m map[string]string
+	if err := json.Unmarshal([]byte(s), &m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }

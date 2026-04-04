@@ -18,6 +18,7 @@ import (
 type Handlers struct {
 	Auth             *handler.AuthHandler
 	OIDC             *handler.OIDCHandler // nil if OIDC is not configured
+	OIDCSettings     *handler.OIDCSettingsHandler
 	DataSource       *handler.DataSourceHandler
 	AlertRule        *handler.AlertRuleHandler
 	AlertEvent       *handler.AlertEventHandler
@@ -327,6 +328,15 @@ func Setup(cfg *config.Config, handlers *Handlers, logger *zap.Logger) *gin.Engi
 			{
 				larkBot.GET("/config", adminOnly, handlers.LarkBot.GetConfig)
 				larkBot.PUT("/config", adminOnly, handlers.LarkBot.UpdateConfig)
+			}
+
+			// OIDC settings — admin only (separate from /auth/oidc/* which is the SSO auth flow)
+			if handlers.OIDCSettings != nil {
+				oidcSettings := auth.Group("/settings/oidc")
+				{
+					oidcSettings.GET("", adminOnly, handlers.OIDCSettings.GetConfig)
+					oidcSettings.PUT("", adminOnly, handlers.OIDCSettings.UpdateConfig)
+				}
 			}
 
 			// Engine status (simple, no process management)

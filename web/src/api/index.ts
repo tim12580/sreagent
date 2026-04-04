@@ -453,3 +453,34 @@ export const larkBotApi = {
   updateConfig: (data: { app_id?: string; app_secret?: string; default_webhook?: string; verification_token?: string; encrypt_key?: string; bot_enabled?: boolean }) =>
     request.put<ApiResponse<null>>('/lark/bot/config', data),
 }
+
+// ===== OIDC Settings API =====
+export const oidcSettingsApi = {
+  getConfig: () =>
+    request.get<ApiResponse<{
+      enabled: boolean
+      issuer_url: string
+      client_id: string
+      client_secret: string
+      redirect_url: string
+      scopes: string
+      role_claim: string
+      role_mapping: string
+      default_role: string
+      auto_provision: boolean
+    }>>('/settings/oidc'),
+
+  updateConfig: (data: {
+    enabled?: boolean
+    issuer_url?: string
+    client_id?: string
+    client_secret?: string
+    redirect_url?: string
+    scopes?: string
+    role_claim?: string
+    role_mapping?: string
+    default_role?: string
+    auto_provision?: boolean
+  }) =>
+    request.put<ApiResponse<{ message: string }>>('/settings/oidc', data),
+}
