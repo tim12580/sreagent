@@ -2,6 +2,8 @@
 import { h, ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMessage, NTag, NButton, NSpace } from 'naive-ui'
+
+type RowKey = string | number
 import { useI18n } from 'vue-i18n'
 import { alertEventApi } from '@/api'
 import type { AlertEvent, AlertViewMode } from '@/types'
@@ -326,6 +328,10 @@ onUnmounted(() => {
 })
 
 const selectedText = computed(() => t('alert.selectedCount', { n: checkedRowKeys.value.length }))
+
+function onCheckedRowKeysUpdate(keys: RowKey[]) {
+  checkedRowKeys.value = keys as number[]
+}
 </script>
 
 <template>
@@ -431,7 +437,7 @@ const selectedText = computed(() => t('alert.selectedCount', { n: checkedRowKeys
         :row-key="(row: AlertEvent) => row.id"
         :row-class-name="severityRowClass"
         :checked-row-keys="checkedRowKeys"
-        @update:checked-row-keys="(keys: number[]) => { checkedRowKeys = keys }"
+        @update:checked-row-keys="onCheckedRowKeysUpdate"
         :bordered="false"
         :pagination="{
           page: page,

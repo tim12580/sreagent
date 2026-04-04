@@ -354,9 +354,7 @@ async function generateAIReport() {
             </div>
             <n-alert v-if="aiReportError" type="error" :bordered="false" style="margin-bottom: 12px">
               {{ aiReportError }}
-              <template #action>
-                <n-button size="tiny" @click="generateAIReport">{{ t('common.retry') }}</n-button>
-              </template>
+              <n-button size="tiny" style="margin-left: 8px" @click="generateAIReport">{{ t('common.retry') }}</n-button>
             </n-alert>
             <div v-if="aiReport">
               <n-thing>

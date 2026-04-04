@@ -50,7 +50,7 @@ const mediaOptions = computed(() =>
 )
 
 const templateOptions = computed(() => [
-  { label: t('common.noData') + ' (默认)', value: null },
+  { label: t('common.noData') + ' (默认)', value: null as any },
   ...templateList.value.map((tp) => ({ label: tp.name, value: tp.id })),
 ])
 
