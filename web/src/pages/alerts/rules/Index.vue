@@ -49,6 +49,24 @@ const datasourceOptions = computed(() =>
   datasources.value.map(ds => ({ label: `${ds.name} (${ds.type})`, value: ds.id }))
 )
 
+const selectedDatasource = computed(() =>
+  datasources.value.find(ds => ds.id === form.datasource_id)
+)
+
+const expressionLang = computed(() => {
+  const t = selectedDatasource.value?.type
+  if (t === 'victorialogs') return 'LogsQL'
+  if (t === 'zabbix') return 'Zabbix'
+  return 'PromQL'
+})
+
+const expressionPlaceholder = computed(() => {
+  const t = selectedDatasource.value?.type
+  if (t === 'victorialogs') return 'e.g. error level:error _time:5m'
+  if (t === 'zabbix') return 'e.g. system.cpu.util[,user]'
+  return 'e.g. avg(rate(cpu_usage_total[5m])) > 0.9'
+})
+
 const columns = [
   {
     title: () => t('common.name'),
@@ -319,11 +337,19 @@ onMounted(() => {
           </n-gi>
         </n-grid>
 
-        <n-form-item :label="t('alert.expression')" required>
+        <n-form-item required>
+          <template #label>
+            <n-space size="small" align="center" style="gap:6px">
+              <span>{{ t('alert.expression') }}</span>
+              <n-tag size="tiny" :type="expressionLang === 'LogsQL' ? 'info' : expressionLang === 'Zabbix' ? 'warning' : 'success'" round>
+                {{ expressionLang }}
+              </n-tag>
+            </n-space>
+          </template>
           <n-input
             v-model:value="form.expression"
             type="textarea"
-            placeholder="e.g. avg(rate(cpu_usage_total[5m])) > 0.9"
+            :placeholder="expressionPlaceholder"
             :rows="3"
             style="font-family: monospace"
           />
