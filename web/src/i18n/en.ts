@@ -319,6 +319,7 @@ export default {
     channelsSubtitle: 'Manage notification channel configurations',
     policiesTitle: 'Notification Policies',
     policiesSubtitle: 'Manage notification routing policies',
+    subtitle: 'Configure alert notification channels, rules and templates',
   },
   mute: {
     title: 'Mute Rules',

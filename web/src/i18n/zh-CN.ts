@@ -328,6 +328,7 @@ export default {
     channelsSubtitle: '管理通知渠道配置',
     policiesTitle: '通知策略',
     policiesSubtitle: '管理通知路由策略',
+    subtitle: '配置告警通知渠道、规则和模板',
   },
   mute: {
     title: '屏蔽规则',

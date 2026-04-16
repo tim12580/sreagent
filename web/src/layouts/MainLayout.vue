@@ -103,16 +103,7 @@ const menuOptions = computed<MenuOption[]>(() => {
         { label: t('menu.muteRules'),    key: '/alerts/mute-rules' },
       ],
     },
-    {
-      label: t('menu.notification'),     key: '/notification', icon: renderIcon(NotificationsOutline),
-      children: [
-        { label: t('menu.alertChannels'),  key: '/notification/alert-channels' },
-        { label: t('menu.notifyRules'),    key: '/notification/rules' },
-        { label: t('menu.notifyMedia'),    key: '/notification/media' },
-        { label: t('menu.templates'),      key: '/notification/templates' },
-        { label: t('menu.subscriptions'),  key: '/notification/subscribe' },
-      ],
-    },
+    { label: t('menu.notification'), key: '/notification', icon: renderIcon(NotificationsOutline) },
     { label: t('menu.schedule'), key: '/schedule',  icon: renderIcon(CalendarOutline) },
   ]
   // Settings page is only visible to admin and team_lead roles
@@ -123,15 +114,11 @@ const menuOptions = computed<MenuOption[]>(() => {
 })
 
 function resolveActiveKey(p: string): string {
-  if (p.startsWith('/alerts/rules'))                    return '/alerts/rules'
-  if (p.startsWith('/alerts/events'))                   return '/alerts/events'
-  if (p.startsWith('/alerts/history'))                  return '/alerts/history'
-  if (p.startsWith('/alerts/mute-rules'))               return '/alerts/mute-rules'
-  if (p.startsWith('/notification/alert-channels'))     return '/notification/alert-channels'
-  if (p.startsWith('/notification/rules'))              return '/notification/rules'
-  if (p.startsWith('/notification/media'))              return '/notification/media'
-  if (p.startsWith('/notification/templates'))          return '/notification/templates'
-  if (p.startsWith('/notification/subscribe'))          return '/notification/subscribe'
+  if (p.startsWith('/alerts/rules'))      return '/alerts/rules'
+  if (p.startsWith('/alerts/events'))     return '/alerts/events'
+  if (p.startsWith('/alerts/history'))    return '/alerts/history'
+  if (p.startsWith('/alerts/mute-rules')) return '/alerts/mute-rules'
+  if (p.startsWith('/notification'))      return '/notification'
   return p
 }
 
@@ -192,11 +179,7 @@ const pageTitle = computed(() => {
   if (p.startsWith('/alerts/events'))             return t('menu.activeAlerts')
   if (p.startsWith('/alerts/history'))            return t('menu.alertHistory')
   if (p.startsWith('/alerts/mute-rules'))         return t('menu.muteRules')
-  if (p === '/notification/alert-channels')       return t('menu.alertChannels')
-  if (p === '/notification/rules')                return t('menu.notifyRules')
-  if (p === '/notification/media')                return t('menu.notifyMedia')
-  if (p === '/notification/templates')            return t('menu.templates')
-  if (p === '/notification/subscribe')            return t('menu.subscriptions')
+  if (p.startsWith('/notification'))              return t('menu.notification')
   if (p === '/schedule')                          return t('menu.schedule')
   if (p === '/settings')                          return t('menu.settings')
   return ''
@@ -204,7 +187,7 @@ const pageTitle = computed(() => {
 const parentTitle = computed(() => {
   const p = route.path
   if (p.startsWith('/alerts/'))        return t('menu.alertManagement')
-  if (p.startsWith('/notification/'))  return t('menu.notification')
+  if (p.startsWith('/notification'))   return ''
   return ''
 })
 

@@ -69,39 +69,8 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'notification',
         name: 'Notification',
-        redirect: '/notification/rules',
-        children: [
-          {
-            path: 'rules',
-            name: 'NotifyRules',
-            component: () => import('@/pages/notification/Rules.vue'),
-            meta: { title: 'Notify Rules', icon: 'notification' },
-          },
-          {
-            path: 'media',
-            name: 'NotifyMedia',
-            component: () => import('@/pages/notification/Media.vue'),
-            meta: { title: 'Notify Media', icon: 'media' },
-          },
-          {
-            path: 'templates',
-            name: 'MessageTemplates',
-            component: () => import('@/pages/notification/Templates.vue'),
-            meta: { title: 'Message Templates', icon: 'template' },
-          },
-          {
-            path: 'subscribe',
-            name: 'SubscribeRules',
-            component: () => import('@/pages/notification/Subscribe.vue'),
-            meta: { title: 'Subscribe Rules', icon: 'subscribe' },
-          },
-          {
-            path: 'alert-channels',
-            name: 'AlertChannels',
-            component: () => import('@/pages/notification/AlertChannels.vue'),
-            meta: { title: '告警频道' },
-          },
-        ],
+        component: () => import('@/pages/notification/Index.vue'),
+        meta: { title: 'Notification' },
       },
       {
         path: 'schedule',
