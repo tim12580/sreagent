@@ -271,6 +271,7 @@ func main() {
 		onCallShiftRepo,
 		zapLogger,
 	)
+	escalationExecutor.SetLarkService(larkSvc)
 	escalationExecutor.Start()
 
 	// Initialize alert evaluator

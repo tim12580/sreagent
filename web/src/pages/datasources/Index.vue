@@ -27,6 +27,14 @@ const defaultForm = {
   endpoint: '',
   description: '',
   auth_type: 'none',
+  // Basic auth
+  auth_username: '',
+  auth_password: '',
+  // Bearer token
+  auth_token: '',
+  // API Key
+  auth_key_header: '',
+  auth_key_value: '',
   labels: [] as { key: string; value: string }[],
   health_check_interval: 60,
   is_enabled: true,
@@ -69,6 +77,11 @@ function openCreate() {
     endpoint: '',
     description: '',
     auth_type: 'none',
+    auth_username: '',
+    auth_password: '',
+    auth_token: '',
+    auth_key_header: '',
+    auth_key_value: '',
     labels: [],
     health_check_interval: 60,
     is_enabled: true,
@@ -85,6 +98,13 @@ function openEdit(ds: DataSource) {
     endpoint: ds.endpoint,
     description: ds.description,
     auth_type: ds.auth_type || 'none',
+    // Credential fields are intentionally blank on edit (backend never returns them).
+    // Leaving them blank signals "keep existing credentials" to the API.
+    auth_username: '',
+    auth_password: '',
+    auth_token: '',
+    auth_key_header: '',
+    auth_key_value: '',
     labels: Object.entries(ds.labels || {}).map(([key, value]) => ({ key, value })),
     health_check_interval: ds.health_check_interval || 60,
     is_enabled: ds.is_enabled,
@@ -104,12 +124,24 @@ async function handleSave() {
 
   saving.value = true
   try {
+    // Build auth_config JSON based on auth_type.
+    // For edits: if all credential fields are blank, send empty string to signal "no change".
+    let auth_config = ''
+    if (form.auth_type === 'basic' && (form.auth_username || form.auth_password)) {
+      auth_config = JSON.stringify({ username: form.auth_username, password: form.auth_password })
+    } else if (form.auth_type === 'bearer' && form.auth_token) {
+      auth_config = JSON.stringify({ token: form.auth_token })
+    } else if (form.auth_type === 'api_key' && form.auth_key_value) {
+      auth_config = JSON.stringify({ header: form.auth_key_header || 'X-API-Key', value: form.auth_key_value })
+    }
+
     const payload = {
       name: form.name,
       type: form.type,
       endpoint: form.endpoint,
       description: form.description,
       auth_type: form.auth_type,
+      auth_config,
       labels: kvArrayToRecord(form.labels),
       health_check_interval: form.health_check_interval,
       is_enabled: form.is_enabled,
@@ -260,6 +292,66 @@ onMounted(fetchList)
         <n-form-item :label="t('datasource.endpointUrl')" required>
           <n-input v-model:value="form.endpoint" placeholder="https://vm.example.com:8428" />
         </n-form-item>
+
+        <!-- Basic Auth credentials -->
+        <template v-if="form.auth_type === 'basic'">
+          <n-grid :x-gap="12" :cols="2">
+            <n-gi>
+              <n-form-item :label="t('datasource.authUsername')">
+                <n-input
+                  v-model:value="form.auth_username"
+                  :placeholder="editingId ? t('datasource.authCredentialsNote') : t('datasource.authUsername')"
+                />
+              </n-form-item>
+            </n-gi>
+            <n-gi>
+              <n-form-item :label="t('datasource.authPassword')">
+                <n-input
+                  v-model:value="form.auth_password"
+                  type="password"
+                  show-password-on="click"
+                  :placeholder="editingId ? t('datasource.authCredentialsNote') : t('datasource.authPassword')"
+                />
+              </n-form-item>
+            </n-gi>
+          </n-grid>
+        </template>
+
+        <!-- Bearer Token credentials -->
+        <template v-if="form.auth_type === 'bearer'">
+          <n-form-item :label="t('datasource.authToken')">
+            <n-input
+              v-model:value="form.auth_token"
+              type="password"
+              show-password-on="click"
+              :placeholder="editingId ? t('datasource.authCredentialsNote') : t('datasource.authToken')"
+            />
+          </n-form-item>
+        </template>
+
+        <!-- API Key credentials -->
+        <template v-if="form.auth_type === 'api_key'">
+          <n-grid :x-gap="12" :cols="2">
+            <n-gi>
+              <n-form-item :label="t('datasource.authApiKeyHeader')">
+                <n-input
+                  v-model:value="form.auth_key_header"
+                  :placeholder="t('datasource.authApiKeyHeaderPlaceholder')"
+                />
+              </n-form-item>
+            </n-gi>
+            <n-gi>
+              <n-form-item :label="t('datasource.authApiKeyValue')">
+                <n-input
+                  v-model:value="form.auth_key_value"
+                  type="password"
+                  show-password-on="click"
+                  :placeholder="editingId ? t('datasource.authCredentialsNote') : t('datasource.authApiKeyValue')"
+                />
+              </n-form-item>
+            </n-gi>
+          </n-grid>
+        </template>
 
         <n-form-item :label="t('common.description')">
           <n-input v-model:value="form.description" type="textarea" :placeholder="t('common.description')" :rows="2" />

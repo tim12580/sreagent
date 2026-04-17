@@ -181,6 +181,62 @@ func (s *LarkService) SendEnrichedAlertNotificationViaBot(ctx context.Context, e
 	return msgID, nil
 }
 
+// SendTestNotificationViaBot sends a test card to a Lark chat via Bot API (chat_id).
+func (s *LarkService) SendTestNotificationViaBot(ctx context.Context, chatID string) error {
+	if s.settingSvc == nil {
+		return fmt.Errorf("settingSvc not configured for Bot API")
+	}
+	larkCfg, err := s.settingSvc.GetLarkConfig(ctx)
+	if err != nil || larkCfg.AppID == "" || larkCfg.AppSecret == "" {
+		return fmt.Errorf("lark bot credentials not configured")
+	}
+	card := lark.BuildTestCard()
+	bot := lark.NewBotClient(larkCfg.AppID, larkCfg.AppSecret)
+	if _, err := bot.SendMessage(ctx, chatID, card); err != nil {
+		s.logger.Error("failed to send lark test card via Bot API",
+			zap.String("chat_id", chatID), zap.Error(err))
+		return fmt.Errorf("lark bot test send failed: %w", err)
+	}
+	s.logger.Info("lark test card sent via Bot API", zap.String("chat_id", chatID))
+	return nil
+}
+
+// SendAlertCardToUser sends an enriched alert card directly to a Lark user (DM) via Bot API.
+// receiveIDType is typically "user_id" (from UserNotifyConfig) or "open_id".
+// Returns the message_id (not persisted to the event — DMs are per-recipient).
+func (s *LarkService) SendAlertCardToUser(ctx context.Context, event *model.AlertEvent, analysis *AlertAnalysis, receiveIDType, receiveID string) (string, error) {
+	if s.settingSvc == nil {
+		return "", fmt.Errorf("settingSvc not configured for Bot API")
+	}
+	if receiveID == "" {
+		return "", fmt.Errorf("receiveID is empty")
+	}
+
+	larkCfg, err := s.settingSvc.GetLarkConfig(ctx)
+	if err != nil || larkCfg.AppID == "" || larkCfg.AppSecret == "" {
+		return "", fmt.Errorf("lark bot credentials not configured")
+	}
+
+	card := s.buildEnrichedCard(event, analysis)
+	botClient := lark.NewBotClient(larkCfg.AppID, larkCfg.AppSecret)
+
+	msgID, err := botClient.SendDirectMessage(ctx, receiveIDType, receiveID, card)
+	if err != nil {
+		s.logger.Error("failed to send alert DM via Bot API",
+			zap.Uint("event_id", event.ID),
+			zap.String("receive_id_type", receiveIDType),
+			zap.Error(err))
+		return "", fmt.Errorf("lark bot DM failed: %w", err)
+	}
+
+	s.logger.Info("alert DM sent via Bot API",
+		zap.Uint("event_id", event.ID),
+		zap.String("receive_id_type", receiveIDType),
+		zap.String("message_id", msgID),
+	)
+	return msgID, nil
+}
+
 // UpdateAlertCard patches the content of an existing card when the alert status changes.
 // messageID is the value stored in alert_events.lark_message_id.
 func (s *LarkService) UpdateAlertCard(ctx context.Context, event *model.AlertEvent, messageID string) error {

@@ -297,6 +297,7 @@ func (s *AlertEventService) processAlert(ctx context.Context, alert *model.Alert
 				return err
 			}
 			s.addTimeline(ctx, existing.ID, model.TimelineActionResolved, nil, "Auto-resolved by AlertManager")
+			s.triggerLarkCardUpdate(existing)
 		}
 		return nil
 	}

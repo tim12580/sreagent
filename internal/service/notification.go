@@ -345,11 +345,21 @@ func (s *NotificationService) TestChannel(ctx context.Context, channelID uint) e
 
 	switch channel.Type {
 	case model.ChannelTypeLarkWebhook, model.ChannelTypeLarkBot:
-		webhookURL, err := extractWebhookURL(channel.Config)
-		if err != nil {
+		// Support both webhook-based channels and Bot API chat_id channels.
+		var cfg struct {
+			WebhookURL string `json:"webhook_url"`
+			ChatID     string `json:"chat_id"`
+		}
+		if err := json.Unmarshal([]byte(channel.Config), &cfg); err != nil {
 			return apperr.WithMessage(apperr.ErrBadRequest, "invalid channel config: "+err.Error())
 		}
-		return s.larkSvc.SendTestNotification(ctx, webhookURL)
+		if cfg.ChatID != "" {
+			return s.larkSvc.SendTestNotificationViaBot(ctx, cfg.ChatID)
+		}
+		if cfg.WebhookURL == "" {
+			return apperr.WithMessage(apperr.ErrBadRequest, "lark channel config must specify webhook_url or chat_id")
+		}
+		return s.larkSvc.SendTestNotification(ctx, cfg.WebhookURL)
 
 	case model.ChannelTypeEmail:
 		return s.testEmailChannel(ctx, channel)

@@ -2,8 +2,10 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,11 +29,18 @@ type EscalationExecutor struct {
 	userNotifyConfigRepo *repository.UserNotifyConfigRepository
 	teamRepo            service.TeamRepository
 	onCallShiftRepo     *repository.OnCallShiftRepository
+	larkSvc             *service.LarkService // optional — enables lark_personal DM
 	logger              *zap.Logger
 
 	interval time.Duration
 	stopCh   chan struct{}
 	once     sync.Once
+}
+
+// SetLarkService injects a LarkService so the executor can deliver `lark_personal`
+// escalation notifications as direct messages via the Lark Bot API.
+func (e *EscalationExecutor) SetLarkService(svc *service.LarkService) {
+	e.larkSvc = svc
 }
 
 // NewEscalationExecutor creates a new EscalationExecutor.
@@ -355,12 +364,32 @@ func (e *EscalationExecutor) notifyUserPersonal(ctx context.Context, event *mode
 				lastErr = err
 			}
 		case "lark_personal":
-			// Requires Lark Bot API (send DM by user_id) — not yet implemented.
-			e.logger.Info("escalation: lark_personal notify requires Bot API, skipping",
-				zap.Uint("user_id", userID))
+			if e.larkSvc == nil {
+				e.logger.Warn("escalation: larkSvc not configured, cannot send lark_personal DM",
+					zap.Uint("user_id", userID))
+				continue
+			}
+			receiveIDType, receiveID, perr := parseLarkPersonalConfig(cfg.Config)
+			if perr != nil {
+				e.logger.Warn("escalation: invalid lark_personal config",
+					zap.Uint("user_id", userID), zap.Error(perr))
+				lastErr = perr
+				continue
+			}
+			if _, err := e.larkSvc.SendAlertCardToUser(ctx, event, nil, receiveIDType, receiveID); err != nil {
+				e.logger.Warn("escalation: lark_personal DM failed",
+					zap.Uint("user_id", userID),
+					zap.String("receive_id_type", receiveIDType),
+					zap.Error(err))
+				lastErr = err
+			}
 		case "email":
-			// Requires system SMTP config lookup — skip for now, use a channel-based email rule instead.
-			e.logger.Info("escalation: personal email notify via escalation not yet implemented, use a notify channel instead",
+			// UserNotifyConfig email config stores only the recipient address:
+			// {"email": "user@example.com"}. The email notify channel expects full SMTP
+			// credentials (host/port/user/pass). Until system-wide SMTP settings exist,
+			// escalation-based personal email is routed via a shared email channel rule
+			// rather than per-user config — log and skip here.
+			e.logger.Info("escalation: personal email requires system-wide SMTP config (not yet available); use an email notify channel instead",
 				zap.Uint("user_id", userID))
 		default:
 			e.logger.Warn("escalation: unsupported personal notify media type",
@@ -369,4 +398,39 @@ func (e *EscalationExecutor) notifyUserPersonal(ctx context.Context, event *mode
 	}
 
 	return lastErr
+}
+
+// parseLarkPersonalConfig extracts the Lark DM recipient from a UserNotifyConfig
+// `lark_personal` record. Accepts any of these JSON shapes (in order of preference):
+//
+//	{"user_id":"xxx"}       → receive_id_type=user_id
+//	{"open_id":"ou_xxx"}    → receive_id_type=open_id
+//	{"union_id":"on_xxx"}   → receive_id_type=union_id
+//	{"lark_user_id":"xxx"}  → receive_id_type=user_id (legacy alias)
+func parseLarkPersonalConfig(raw string) (receiveIDType, receiveID string, err error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", "", fmt.Errorf("lark_personal config is empty")
+	}
+	var c struct {
+		UserID      string `json:"user_id"`
+		OpenID      string `json:"open_id"`
+		UnionID     string `json:"union_id"`
+		LarkUserID  string `json:"lark_user_id"`
+	}
+	if err := json.Unmarshal([]byte(raw), &c); err != nil {
+		return "", "", fmt.Errorf("parse lark_personal config: %w", err)
+	}
+	switch {
+	case c.UserID != "":
+		return "user_id", c.UserID, nil
+	case c.LarkUserID != "":
+		return "user_id", c.LarkUserID, nil
+	case c.OpenID != "":
+		return "open_id", c.OpenID, nil
+	case c.UnionID != "":
+		return "union_id", c.UnionID, nil
+	default:
+		return "", "", fmt.Errorf("lark_personal config missing user_id/open_id/union_id")
+	}
 }

@@ -2,7 +2,7 @@
 
 > 本文件供 Claude Code / AI Vibe Coding 工具在新会话时快速接手项目，无需重新探索代码库。
 > 同步来源：`.opencode/context.md`（OpenCode 生成）+ 代码审阅。
-> **最后更新：2026-04-17（当前 tag: v1.3.1）**
+> **最后更新：2026-04-17（当前 tag: v1.5.0）**
 
 ---
 
@@ -210,7 +210,8 @@ Engine fires
 
 | Tag | 主要内容 |
 |-----|---------|
-| **v1.3.1** | MTTA/MTTR 升级：P50/P95 百分位、按严重程度细分、MTTA/MTTR 每日趋势折线图；品牌 logo.svg（sider/login/favicon 统一）；个人信息头像扩展为 32 个预设 emoji + 自定义上传（≤200KB，base64 data URL）；修复顶部栏保存头像后仍显示用户名首字母的 bug；GitHub Actions 收敛为 linux/amd64 单架构 + `latest`+`v<tag>` 双标签 |
+| **v1.5.0** | 升级策略 `target=user/team/schedule` 的 `lark_personal` 分支接入 Lark Bot API（DM 到 user_id/open_id/union_id）；告警 AutoResolve 时同步 PATCH Lark 卡片；`LarkBotService.SendMessage` 改为优先用 Bot API 回复到触发指令的 chatID（Webhook 为兜底）；`NotifyChannel` Bot API 类型（带 chat_id）在 TestChannel 支持真发送测试卡片；`BotClient.SendDirectMessage`/`SendText` 暴露 user_id/open_id/union_id 多种 receive_id_type |
+| v1.3.1 | MTTA/MTTR 升级：P50/P95 百分位、按严重程度细分、MTTA/MTTR 每日趋势折线图；品牌 logo.svg（sider/login/favicon 统一）；个人信息头像扩展为 32 个预设 emoji + 自定义上传（≤200KB，base64 data URL）；修复顶部栏保存头像后仍显示用户名首字母的 bug；GitHub Actions 收敛为 linux/amd64 单架构 + `latest`+`v<tag>` 双标签 |
 | v1.3.0 | 设计系统级视觉翻新：CSS token（品牌色阶、间距、阴影、motion/typography）+ Naive UI GlobalThemeOverrides（dark + light）+ 侧栏/顶栏/登录页玻璃态皮肤 |
 | v1.2.0 | 告警规则分类 tab、仪表盘分析图表（趋势 + Top 规则）、操作审计日志、表达式实时测试 |
 | v1.1.x | 告警详情页改版（严重等级横幅 + 生命周期时间线）、通知模块合并为单页 Tabs |

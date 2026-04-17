@@ -101,28 +101,59 @@ func (c *BotClient) getTenantAccessToken(ctx context.Context) (string, error) {
 	return result.TenantAccessToken, nil
 }
 
-// SendMessage sends a card message to a Lark group via Bot API.
+// SendMessage sends a card message to a Lark group chat via Bot API.
 // Returns the message_id which can be used to update the card later.
 func (c *BotClient) SendMessage(ctx context.Context, chatID string, card *CardMessage) (string, error) {
+	return c.sendCard(ctx, "chat_id", chatID, card)
+}
+
+// SendDirectMessage sends a card message directly to a user via Bot API.
+// receiveIDType should be one of: "user_id", "open_id", "union_id", "email".
+// Returns the message_id.
+func (c *BotClient) SendDirectMessage(ctx context.Context, receiveIDType, receiveID string, card *CardMessage) (string, error) {
+	switch receiveIDType {
+	case "user_id", "open_id", "union_id", "email":
+	default:
+		return "", fmt.Errorf("unsupported receive_id_type for DM: %s", receiveIDType)
+	}
+	return c.sendCard(ctx, receiveIDType, receiveID, card)
+}
+
+// SendText sends a plain-text message via the Bot API (used for command replies).
+// receiveIDType is typically "chat_id" for group replies or "open_id"/"user_id" for DMs.
+func (c *BotClient) SendText(ctx context.Context, receiveIDType, receiveID, text string) (string, error) {
+	textJSON, err := json.Marshal(map[string]string{"text": text})
+	if err != nil {
+		return "", fmt.Errorf("marshal text: %w", err)
+	}
+	return c.sendRaw(ctx, receiveIDType, receiveID, "text", string(textJSON))
+}
+
+// sendCard is the shared implementation backing SendMessage / SendDirectMessage.
+func (c *BotClient) sendCard(ctx context.Context, receiveIDType, receiveID string, card *CardMessage) (string, error) {
+	cardJSON, err := json.Marshal(card.Card)
+	if err != nil {
+		return "", fmt.Errorf("marshal card: %w", err)
+	}
+	return c.sendRaw(ctx, receiveIDType, receiveID, "interactive", string(cardJSON))
+}
+
+// sendRaw is the underlying message send helper.
+func (c *BotClient) sendRaw(ctx context.Context, receiveIDType, receiveID, msgType, content string) (string, error) {
 	token, err := c.getTenantAccessToken(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	cardJSON, err := json.Marshal(card.Card)
-	if err != nil {
-		return "", fmt.Errorf("marshal card: %w", err)
-	}
-
 	payload := map[string]string{
-		"receive_id": chatID,
-		"msg_type":   "interactive",
-		"content":    string(cardJSON),
+		"receive_id": receiveID,
+		"msg_type":   msgType,
+		"content":    content,
 	}
 	body, _ := json.Marshal(payload)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		larkBaseURL+sendMsgEndpoint+"?receive_id_type=chat_id",
+		larkBaseURL+sendMsgEndpoint+"?receive_id_type="+receiveIDType,
 		bytes.NewReader(body))
 	if err != nil {
 		return "", err

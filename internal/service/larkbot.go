@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+
+	"github.com/sreagent/sreagent/internal/pkg/lark"
 )
 
 // LarkBotService handles Lark bot event callbacks and commands.
@@ -354,18 +356,36 @@ func (s *LarkBotService) cmdStatus(ctx context.Context, chatID string) error {
 	return s.SendMessage(ctx, chatID, msg)
 }
 
-// SendMessage sends a text message to a Lark chat using the bot webhook.
-// TODO: When migrated to the Lark Bot API (not incoming-webhook), use chatID to
-// send a properly-routed reply via the messages.create API endpoint.
+// SendMessage sends a text message to a Lark chat.
+//
+// Routing preference:
+//  1. If AppID + AppSecret are configured, use the Bot API to reply into the
+//     originating chat (chatID), so @bot commands land in the correct room.
+//  2. Otherwise fall back to the legacy incoming webhook (DefaultWebhook) — this
+//     ignores chatID and is only useful for one-way broadcast setups.
 func (s *LarkBotService) SendMessage(ctx context.Context, chatID, content string) error {
 	cfg, err := s.loadConfig(ctx)
 	if err != nil {
 		s.logger.Warn("lark bot: failed to load config", zap.Error(err))
 		return fmt.Errorf("failed to load lark config: %w", err)
 	}
+
+	// Preferred path: Bot API with chat_id (correct routing for command replies).
+	if cfg.AppID != "" && cfg.AppSecret != "" && chatID != "" {
+		bot := lark.NewBotClient(cfg.AppID, cfg.AppSecret)
+		if _, err := bot.SendText(ctx, "chat_id", chatID, content); err != nil {
+			s.logger.Warn("lark bot: Bot API send failed",
+				zap.String("chat_id", chatID), zap.Error(err))
+			return fmt.Errorf("lark bot API send failed: %w", err)
+		}
+		s.logger.Debug("lark bot text reply sent via Bot API", zap.String("chat_id", chatID))
+		return nil
+	}
+
+	// Fallback: incoming webhook (chatID is ignored by webhook targets).
 	if cfg.DefaultWebhook == "" {
-		s.logger.Warn("lark bot: no default webhook configured, cannot send message")
-		return fmt.Errorf("lark bot webhook not configured")
+		s.logger.Warn("lark bot: neither Bot API credentials nor default webhook configured")
+		return fmt.Errorf("lark bot not configured (need AppID/AppSecret or DefaultWebhook)")
 	}
 
 	payload := map[string]interface{}{
