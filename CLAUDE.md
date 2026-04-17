@@ -13,6 +13,7 @@
 | 属性 | 值 |
 |------|---|
 | Go Module | `github.com/sreagent/sreagent` |
+| GitHub 仓库 | https://github.com/tim12580/sreagent |
 | Go 版本 | 1.25.0（`go.mod`） |
 | 前端 | Vue 3 + TypeScript + Naive UI + Vite 6 |
 | 数据库 | MySQL 8.0（GORM v2 + golang-migrate） |
@@ -223,9 +224,9 @@ Engine fires
 
 | 功能 | 优先级 | 难度 | 状态/说明 |
 |------|:------:|:----:|---------|
-| 升级策略执行（target=user/team） | 高 | 中等 | `EscalationExecutor` 已跑，缺口在 `escalation_executor.go:194`：step 无 channel 时只打日志不发通知；需注入 `UserNotifyConfigRepo`+`ScheduleService` 补 user/team 分支 |
-| Lark 卡片状态更新 | 高 | 较难 | 需 Bot API（非 Webhook）+ migration 加 `lark_message_id` 字段 + 状态变更时 PATCH `/im/v1/messages/{id}/patch`；凭据已在 DB |
-| Lark Bot 指令（@机器人） | 中 | 中等 | 框架存在，指令未完整实现（ack / resolve / assign 快捷命令尚未接线） |
+| 升级策略执行（target=user/team） | 高 | 中等 | ✅ v1.5.0 已实现：`lark_personal` 通过 Bot API DM（user_id/open_id/union_id）；email 分支待系统级 SMTP 配置支持 |
+| Lark 卡片状态更新 | 高 | 较难 | ✅ v1.5.0 已实现：`alert_event.go processAlert` auto-resolve 触发 PATCH；Acknowledge/Silence/Resolve 路径早已接线 |
+| Lark Bot 指令（@机器人） | 中 | 中等 | 部分实现：/health /oncall /ack /status 已接线；SendMessage 改为优先 Bot API 回复到 chatID；OpenID→User 映射仍用 systemUserID=1 |
 | 告警降噪/聚合 | 中 | 较难 | 未实现；建议按 `labels + fingerprint prefix` 做时间窗口合并 |
 | 告警统计报表 | 中 | 中等 | 仅有仪表盘实时看板，未做周/月趋势导出（PDF/CSV） |
 | 头像后端大小校验 | 中 | 简单 | 当前仅前端限制 200KB data URL，`auth.UpdateMe` 未在 Go 层校验 `avatar` 长度 |
@@ -238,6 +239,7 @@ Engine fires
 
 ## 已知限制
 
-- `larkbot.go:SendMessage` 始终发到 DefaultWebhook，chatID 未使用（已知限制）
+- Lark Bot 指令 OpenID→DB User 映射未实现，`/ack` 使用 systemUserID=1 作为操作人
+- 升级策略 `email` 个人媒介需系统级 SMTP 配置（目前仅 log 跳过，建议用 email 类型 NotifyChannel 代替）
 - 告警引擎为内存状态机，默认 `replicas: 1`；多副本扩展需引入 Redis 分布式锁
 - 无 refresh token，JWT 24h 过期后需重新登录
