@@ -7,7 +7,6 @@ import { useAuthStore } from '@/stores/auth'
 import { useI18n } from 'vue-i18n'
 import { authApi } from '@/api'
 import { GlobeOutline, SunnyOutline, MoonOutline, LogInOutline } from '@vicons/ionicons5'
-import AuroraBackground from '@/components/common/AuroraBackground.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -82,8 +81,8 @@ onMounted(() => {
 
 <template>
   <div class="login-container" :class="{ light: !isDark }">
-    <!-- Aurora replaces static orbs -->
-    <AuroraBackground intensity="bold" :absolute="true" />
+    <!-- Aurora is already rendered globally in App.vue (fixed, z-index: -2).
+         Only add the grid texture layer here. -->
     <div class="grid-lines" :class="{ light: !isDark }" />
 
     <!-- Top right controls: language + theme -->
@@ -173,17 +172,19 @@ onMounted(() => {
 <style scoped>
 .login-container {
   min-height: 100vh;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  background: var(--sre-bg-base);
+  /* Solid fallback so the page is never invisible */
+  background: var(--sre-bg-base, #07090d);
   overflow: hidden;
   transition: background var(--sre-duration-slow) var(--sre-ease-out);
 }
 
 .login-container.light {
-  background: var(--sre-bg-page);
+  background: var(--sre-bg-page, #f3f5f8);
 }
 
 .login-controls {

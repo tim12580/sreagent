@@ -25,6 +25,8 @@ import {
   LockClosedOutline,
   EarthOutline,
   TimeOutline,
+  PinOutline,
+  MenuOutline,
 } from '@vicons/ionicons5'
 
 const router = useRouter()
@@ -33,19 +35,30 @@ const authStore = useAuthStore()
 const { t, locale } = useI18n()
 const message = useMessage()
 
-// Icon Rail: default collapsed (72px icon rail), persist preference
+// Icon Rail state
+// pinned=true  → user locked the sidebar open; hover has no effect
+// pinned=false → icon-rail mode; hover temporarily expands
 const collapsed = ref(JSON.parse(localStorage.getItem('sre-sider-collapsed') ?? 'true'))
-watch(collapsed, v => localStorage.setItem('sre-sider-collapsed', JSON.stringify(v)))
+const pinned    = ref(JSON.parse(localStorage.getItem('sre-sider-pinned')    ?? 'false'))
 
-// Hover-to-expand behaviour
+watch(collapsed, v => localStorage.setItem('sre-sider-collapsed', JSON.stringify(v)))
+watch(pinned,    v => localStorage.setItem('sre-sider-pinned',    JSON.stringify(v)))
+
+// Click the pin button: toggle between pinned-open and icon-rail
+function togglePin() {
+  pinned.value = !pinned.value
+  collapsed.value = !pinned.value   // pinned → expanded; unpinned → collapsed
+}
+
+// Hover-to-expand (only in icon-rail / unpinned mode)
 let hoverExpandTimer = 0
 function onSiderEnter() {
-  if (!collapsed.value) return
-  hoverExpandTimer = window.setTimeout(() => { collapsed.value = false }, 180)
+  if (pinned.value || !collapsed.value) return
+  hoverExpandTimer = window.setTimeout(() => { collapsed.value = false }, 200)
 }
 function onSiderLeave() {
   clearTimeout(hoverExpandTimer)
-  if (collapsed.value) return
+  if (pinned.value || collapsed.value) return
   collapsed.value = true
 }
 
@@ -421,6 +434,15 @@ async function toggleNotifyConfig(cfg: UserNotifyConfig, enabled: boolean) {
             <span class="gradient-text">SRE</span>Agent
           </span>
         </transition>
+        <!-- Pin/Unpin toggle button -->
+        <div
+          class="sider-pin-btn"
+          :class="{ pinned, collapsed }"
+          :title="pinned ? '取消固定侧边栏' : '固定侧边栏'"
+          @click.stop="togglePin"
+        >
+          <n-icon :component="pinned ? PinOutline : MenuOutline" :size="14" />
+        </div>
       </div>
 
       <!-- Navigation menu -->
@@ -773,6 +795,27 @@ async function toggleNotifyConfig(cfg: UserNotifyConfig, enabled: boolean) {
   justify-content: center;
   padding: 14px 12px;
 }
+
+/* Pin / menu toggle button */
+.sider-pin-btn {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--sre-radius-sm);
+  cursor: pointer;
+  color: var(--sre-text-tertiary);
+  flex-shrink: 0;
+  transition: background var(--sre-duration-fast), color var(--sre-duration-fast),
+              opacity var(--sre-duration-fast);
+  opacity: 0;
+}
+.sider-logo:hover .sider-pin-btn { opacity: 1; }
+.sider-pin-btn:hover { background: var(--sre-bg-elevated); color: var(--sre-primary); }
+.sider-pin-btn.pinned { color: var(--sre-primary); opacity: 1; }
+.sider-pin-btn.collapsed { display: none; }
 .logo-mark {
   width: 32px;
   height: 32px;

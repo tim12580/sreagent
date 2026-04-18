@@ -142,8 +142,8 @@
   --sre-aurora-2: #06b6d4;   /* teal */
   --sre-aurora-3: #a78bfa;   /* violet */
   --sre-aurora-4: #f472b6;   /* pink */
-  --sre-aurora-blur: 140px;
-  --sre-aurora-opacity: 0.38;
+  --sre-aurora-blur: 120px;
+  --sre-aurora-opacity: 0.28;
 
   /* Rotating conic (used for gradient borders + focus rings) */
   --sre-conic-brand: conic-gradient(
