@@ -475,7 +475,7 @@ onMounted(() => {
             </div>
             <div class="hero-sev-bars">
               <div
-                v-for="sev in ['critical','warning','info']"
+                v-for="sev in (['critical','warning','info'] as const)"
                 :key="sev"
                 class="hero-sev-bar"
                 :class="`hero-sev-bar--${sev}`"
@@ -486,12 +486,12 @@ onMounted(() => {
                     class="hero-sev-fill"
                     :style="{
                       width: stats.active_alerts
-                        ? ((stats.severity_breakdown?.[sev as keyof typeof stats.severity_breakdown] ?? 0) / stats.active_alerts * 100) + '%'
+                        ? ((stats.severity_breakdown?.[sev] ?? 0) / stats.active_alerts * 100) + '%'
                         : '0%'
                     }"
                   />
                 </div>
-                <span class="hero-sev-count number-display">{{ stats.severity_breakdown?.[sev as keyof typeof stats.severity_breakdown] ?? 0 }}</span>
+                <span class="hero-sev-count number-display">{{ stats.severity_breakdown?.[sev] ?? 0 }}</span>
               </div>
             </div>
           </div>
@@ -596,10 +596,10 @@ onMounted(() => {
         </div>
         <v-chart :option="severityChartOption" autoresize style="height:160px" />
         <div class="sev-legend">
-          <div v-for="s in ['critical','warning','info']" :key="s" class="sev-item">
+          <div v-for="s in (['critical','warning','info'] as const)" :key="s" class="sev-item">
             <span class="sev-dot" :class="`sev-dot--${s}`" />
             <span class="sev-label">{{ t(`alert.${s}`) }}</span>
-            <span class="sev-count">{{ stats.severity_breakdown?.[s as keyof typeof stats.severity_breakdown] ?? 0 }}</span>
+            <span class="sev-count">{{ stats.severity_breakdown?.[s] ?? 0 }}</span>
           </div>
         </div>
       </div>
