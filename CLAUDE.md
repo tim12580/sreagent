@@ -221,22 +221,53 @@ Engine fires
 
 ---
 
-## 产品功能缺口（待开发）
+## 竞品对比（v1.6.0 视角）
 
-| 功能 | 优先级 | 难度 | 状态/说明 |
-|------|:------:|:----:|---------|
-| 升级策略执行（target=user/team） | 高 | 中等 | ✅ 已实现：`lark_personal` Bot API DM；`email` 使用系统 SMTP 发送 |
-| Lark 卡片状态更新 | 高 | 较难 | ✅ 已实现：auto-resolve/Ack/Silence/Resolve 均触发 PATCH |
-| Lark Bot 指令（@机器人） | 中 | 中等 | ✅ 已实现：`resolveUserID` 通过 `lark_user_id` 查 DB 用户；用户可在个人设置绑定 Open ID |
-| 系统级 SMTP 配置 | 高 | 简单 | ✅ 已实现：`system_settings` group=smtp，UI 在设置→SMTP 邮件 tab |
-| 告警事件 CSV 导出 | 中 | 简单 | ✅ 已实现：`GET /api/v1/alert-events/export`，前端导出按钮 |
-| 屏蔽规则命中预览 | 中 | 中等 | ✅ 已实现：`GET /api/v1/mute-rules/preview`，前端预览面板 |
-| 头像后端大小校验 | 中 | 简单 | ✅ 已实现：`auth.UpdateMe` Go 层校验 data URL ≤ 272000 字节 |
-| JWT refresh token | 低 | 简单 | ✅ 已实现：`POST /api/v1/auth/refresh`，7天宽限续签；前端 Axios 拦截自动刷新 |
-| 告警降噪/聚合 | 中 | 较难 | 未实现；建议按 `labels + fingerprint prefix` 做时间窗口合并 |
-| 告警统计报表周/月导出 | 低 | 中等 | 仅有仪表盘实时看板，未做 PDF/CSV 报表下载 |
-| SOP 知识库 | 低 | 较难 | 未实现 |
-| 多租户隔离 | 低 | 很难 | 未实现（目前 BizGroup 只作为告警作用域标签，非硬隔离） |
+### 我们的差异化优势
+| 维度 | SREAgent | PagerDuty | Grafana OnCall | 夜莺(n9e) |
+|------|:--------:|:---------:|:--------------:|:---------:|
+| 飞书深度集成（Bot DM + 卡片更新 + 指令） | ✅ 最强 | ❌ | ❌ | 部分 |
+| AI 根因分析（LLM 报告嵌入卡片） | ✅ | ✅（$$） | ❌ | ❌ |
+| 独立告警引擎（无 Alertmanager 依赖） | ✅ | N/A | 依赖 | 依赖 |
+| 设计系统 / 暗色 UI 质量 | ✅ 最优 | 中 | 中 | 差 |
+| OIDC/SSO 开箱即用 | ✅ | ✅ | ✅ | 部分 |
+
+### 功能缺口（竞品已有、我们尚未实现）
+
+**P0 — 竞品标配，近期实现**
+
+| 功能 | 竞品 | 难度 | 说明 |
+|------|------|:----:|------|
+| **心跳监控（Heartbeat）** | OpsGenie/n9e/UptimeRobot | 中 | 周期 ping URL/TCP，超时即告警；新 rule type=heartbeat，引擎内建检测器 |
+| **告警抑制规则（Inhibition）** | Alertmanager/PD/OpsGenie | 中 | 当源告警触发时条件性屏蔽目标告警（≠时间窗口 MuteRule）；场景：主机宕机屏蔽其上所有服务告警 |
+| **企业微信 / 钉钉通知** | n9e 标配 | 简单 | 两个 NotifyMedia 类型，API 格式公开；国内场景刚需 |
+
+**P1 — 高价值**
+
+| 功能 | 竞品 | 难度 | 说明 |
+|------|------|:----:|------|
+| **告警自愈（Auto-Remediation）** | PD/n9e | 中 | 规则可选 `remediation_webhook`，告警触发时 POST 执行；如重启 Pod、清磁盘 |
+| **iCal 值班日历导出** | PD/OpsGenie/OnCall | 简单 | `GET /schedules/:id/ical` 返回 RFC 5545，可导入 Google Calendar/Outlook |
+| **告警 SLA 超时自动升级** | PD/OpsGenie | 中 | 告警 N 分钟未认领自动触发升级策略（升级策略已有，SLA 打通缺失） |
+| **入站 Webhook 解析器** | PD/n9e | 较难 | 自定义 JSONPath 规则将第三方格式映射为 AlertEvent（目前仅 Alertmanager 格式） |
+
+**P2 — 中等优先级**
+
+| 功能 | 难度 | 说明 |
+|------|:----:|------|
+| **Postmortem / 事后分析** | 中 | 告警关闭后关联复盘记录（时间线、根因、修复措施）；PD/OpsGenie 标配 |
+| **通知限频 per user** | 简单 | 同规则对同用户每小时最多通知 N 次；防告警疲劳 |
+| **图表截图附件** | 较难 | 告警触发时截取数据源图表附在飞书卡片中 |
+| **SOP 知识库** | 较难 | 规则关联 Markdown RunBook；AI 搜索推荐 |
+
+**P3 — 长期规划**
+
+| 功能 | 难度 | 说明 |
+|------|:----:|------|
+| 状态页（Status Page） | 大 | 公开/私有服务状态展示 |
+| SMS / 电话通知 | 中 | Twilio/云信/阿里云 |
+| 多租户隔离 | 极难 | 全表加 tenant_id，架构级重构 |
+| 多副本引擎 | 大 | Redis 分布式锁支持水平扩展 |
 
 ---
 
@@ -244,3 +275,4 @@ Engine fires
 
 - 告警引擎为内存状态机，默认 `replicas: 1`；多副本扩展需引入 Redis 分布式锁
 - Lark Bot `/ack` 若用户未绑定 Open ID，回落 systemUserID=1 作为操作人
+- Webhook 入站只支持 Alertmanager/VMAlert 格式，第三方系统需适配

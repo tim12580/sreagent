@@ -1,9 +1,10 @@
 # SREAgent
 
-[![Go Version](https://img.shields.io/badge/Go-1.24-00ADD8?style=flat-square&logo=go)](https://golang.org/)
+[![Go Version](https://img.shields.io/badge/Go-1.25-00ADD8?style=flat-square&logo=go)](https://golang.org/)
 [![Vue](https://img.shields.io/badge/Vue-3.x-4FC08D?style=flat-square&logo=vue.js)](https://vuejs.org/)
+[![Release](https://img.shields.io/badge/Release-v1.6.0-18a058?style=flat-square)](https://github.com/tim12580/sreagent/releases)
 [![License](https://img.shields.io/badge/License-Proprietary-red?style=flat-square)](LICENSE)
-[![Docker](https://img.shields.io/badge/Docker-multi--arch-2496ED?style=flat-square&logo=docker)](https://hub.docker.com/)
+[![Docker](https://img.shields.io/badge/Docker-amd64-2496ED?style=flat-square&logo=docker)](https://hub.docker.com/)
 
 **面向 SRE/运维团队的智能告警管理平台**：统一告警生命周期管理、OnCall 值班调度、AI 辅助分析与飞书（Lark）深度集成。
 
@@ -27,17 +28,19 @@
 ## 功能特性
 
 ### 告警管理
-- **数据源接入** — 支持 Prometheus、VictoriaMetrics、VictoriaLogs、Zabbix，内置健康检查
+- **数据源接入** — 支持 Prometheus、VictoriaMetrics、VictoriaLogs、Zabbix，内置健康检查（延迟 + 版本信息）
 - **告警规则引擎** — 内置 Go 评估引擎（不依赖外部 AlertManager），支持 PromQL/LogsQL，含防抖（`for_duration`）与留观（`recovery_hold`）机制
 - **AlertManager Webhook 兼容** — 可直接接收来自 AlertManager/VMAlert 的标准 Webhook 推送
 - **告警事件完整生命周期** — `firing → acknowledged → assigned → resolved → closed`，支持认领、分派、静默、评论
 - **告警时间线（Timeline）** — 每条告警的完整操作审计记录
-- **屏蔽规则（Mute Rules）** — 支持一次性与周期性时间窗口，按标签/级别/规则 ID 批量屏蔽（常用于维护窗口）
-- **批量操作** — 批量认领、批量关闭告警事件
+- **告警分组视图** — 按规则 + 数据源聚合活跃告警，快速识别噪音规则（fire_count 噪音指标）
+- **屏蔽规则（Mute Rules）** — 支持一次性与周期性时间窗口，按标签/级别/规则 ID 批量屏蔽；内置命中预览
+- **批量操作** — 批量认领、批量关闭；事件列表支持 CSV 导出（带筛选参数）
 
 ### 通知路由
 - **告警频道（Alert Channels）** — 基于标签子集匹配，自动将告警推送到指定 Lark Webhook 群，含节流防刷屏
 - **通知媒介（Notify Media）** — 支持 Lark Webhook、邮件、HTTP 回调、脚本，可发送测试消息
+- **系统级 SMTP** — 在系统设置中配置全局 SMTP（支持 TLS/STARTTLS），用于升级策略邮件投递
 - **消息模板** — 使用 Go template 语法自定义 Lark 卡片、Markdown、纯文本消息格式
 - **通知规则（Notify Rules）** — 支持 Pipeline 处理（Relabel、AI 摘要、自定义 Callback）
 - **订阅规则（Subscribe Rules）** — 用户/团队可跨业务线订阅感兴趣的告警
@@ -46,7 +49,7 @@
 - **排班计划（Schedules）** — 日历视图，直接对人排班，支持日/周/自定义轮换
 - **班次管理（Shifts）** — 精确到分钟的手动排班，支持自动生成未来 N 周班次
 - **班次覆盖（Overrides）** — 节假日调班、临时换班，优先级高于普通班次
-- **升级策略（Escalation Policies）** — 超时未认领自动升级通知范围，多步骤升级链配置
+- **升级策略（Escalation Policies）** — 超时未认领自动升级通知范围，多步骤升级链；支持 Lark Bot DM 和 SMTP 邮件投递
 - **告警自动分派** — 新告警触发时根据标签匹配当前值班人，自动设置 `assigned_to`
 
 ### AI 辅助分析
@@ -54,9 +57,11 @@
 - **SOP 推荐** — 根据告警上下文推荐处理步骤
 - **多服务商支持** — OpenAI、Azure OpenAI、Ollama（本地）、自定义兼容接口（OneAPI/vLLM）
 
-### 飞书（Lark）集成
+### 飞书（Lark）深度集成
 - **Webhook 通知** — 发送富文本交互卡片，包含操作按钮（认领/静默/解决）
-- **Lark Bot** — 支持事件回调，可通过飞书机器人与平台交互
+- **Bot API 个人推送** — 通过飞书机器人发送 DM 到指定 user_id / open_id / union_id
+- **卡片实时更新** — 告警状态变更（认领/解决/静默）时实时 PATCH 飞书卡片
+- **Lark Bot 指令** — @机器人支持 `/ack`、`/oncall`、`/status`、`/health` 等指令；绑定 Open ID 后识别操作人身份
 - **免登录操作页** — 告警卡片中的按钮跳转至 `/alert-action/:token`，无需登录即可操作
 
 ### 组织与权限
@@ -65,11 +70,19 @@
 - **业务组（Biz Groups）** — 树形结构（`/` 分隔），如 `infrastructure/database`
 - **虚拟用户** — 支持 `bot`（飞书机器人代理）和 `channel`（告警频道实体）类型
 - **个人通知配置** — 每个用户可配置多个个人通知媒介（飞书个人 ID / 邮件 / Webhook）
+- **SSO / OIDC** — 支持 Keycloak 单点登录，配置存储在 DB（运行时无需重启）
+- **JWT 自动续签** — Token 24h 有效，7 天宽限期内自动刷新，前端无感知
+
+### 数据分析
+- **实时仪表盘** — 告警引擎状态、活跃告警统计（按严重程度）、MTTA/MTTR（P50/P95）
+- **趋势图表** — 日维度告警趋势、MTTA/MTTR 趋势、严重程度历史分布
+- **统计报表导出** — 可选日期范围，导出每日汇总 CSV（含 Top 规则、MTTA/MTTR）
+- **操作审计日志** — 全平台操作记录（用户/IP/资源/时间）
 
 ### 平台能力
-- **实时仪表盘** — 告警引擎状态、活跃告警统计、个人待处理告警
 - **规则导入/导出** — 兼容 Prometheus YAML 格式（`groups: [{name, rules}]`）
 - **自动数据库迁移** — 启动时通过 golang-migrate 自动完成建表和升级，零人工干预
+- **健康检查端点** — `GET /healthz`，K8s liveness/readiness probe 就绪
 
 ---
 
@@ -210,6 +223,7 @@ make web-dev       # 启动 Vite 开发服务器（含 API 代理）
 | `database.password` | `SREAGENT_DATABASE_PASSWORD` | MySQL 数据库密码 | `your-db-password` |
 | `redis.password` | `SREAGENT_REDIS_PASSWORD` | Redis 密码（无密码时留空） | `your-redis-password` |
 | `jwt.secret` | `SREAGENT_JWT_SECRET` | JWT 签名密钥，建议 32 字节以上随机字符串 | `openssl rand -hex 32` |
+| — | `SREAGENT_SECRET_KEY` | AES-256-GCM 主密钥（64 位十六进制 = 32 字节），用于加密 AI/Lark/SMTP 敏感凭据 | `openssl rand -hex 32` |
 
 **其他常用配置项（`configs/config.yaml`）：**
 
@@ -247,10 +261,12 @@ engine:
 |------|---------|------|
 | **AI 配置** | 设置 → AI 配置 | 服务商（OpenAI/Azure/Ollama/自定义）、API Key、Base URL、模型名称 |
 | **飞书机器人** | 设置 → 飞书机器人 | App ID、App Secret、Verification Token、Encrypt Key、默认 Webhook |
+| **SMTP 邮件** | 设置 → SMTP 邮件 | 全局发件服务器（Host/Port/TLS/账号密码），用于升级策略邮件投递 |
+| **OIDC / SSO** | 设置 → SSO / OIDC | Issuer URL、Client ID/Secret、角色映射，修改后需重启 Pod |
 | **通知媒介** | 通知 → 通知媒介 | Lark Webhook URL、邮件 SMTP、HTTP 回调等 |
 | **告警频道** | 通知 → 告警频道 | 标签匹配规则、关联通知媒介、节流配置 |
 
-> **提示：** AI 和 Lark Bot 的敏感凭据均通过 Web UI 写入数据库，无需挂载配置文件或注入环境变量。
+> **提示：** AI、Lark Bot 和 SMTP 的敏感凭据均通过 Web UI 写入数据库并 AES-256-GCM 加密，无需挂载配置文件或注入额外环境变量。
 
 ---
 
@@ -402,28 +418,29 @@ Authorization: Bearer <token>
 
 | 模块 | 路径前缀 | 主要操作 |
 |------|---------|---------|
-| **认证** | `/api/v1/auth` | 登录、获取 Profile |
-| **个人信息** | `/api/v1/me` | 更新资料、修改密码、个人通知配置 |
-| **数据源** | `/api/v1/datasources` | CRUD、手动触发健康检查 |
+| **认证** | `/api/v1/auth` | 登录、刷新 Token（7天宽限续签）、获取 Profile |
+| **个人信息** | `/api/v1/me` | 更新资料、修改密码、个人通知配置、绑定飞书 Open ID |
+| **数据源** | `/api/v1/datasources` | CRUD、健康检查（返回延迟 + 版本） |
 | **告警规则** | `/api/v1/alert-rules` | CRUD、启用/禁用、规则导入/导出 |
-| **告警事件** | `/api/v1/alert-events` | 列表、详情、认领/分派/解决/关闭/静默/评论、时间线、批量操作 |
-| **屏蔽规则** | `/api/v1/mute-rules` | CRUD |
+| **告警事件** | `/api/v1/alert-events` | 列表、分组聚合视图、详情、认领/分派/解决/关闭/静默/评论、时间线、批量操作、CSV 导出 |
+| **屏蔽规则** | `/api/v1/mute-rules` | CRUD、命中预览（当前 firing 告警中哪些将被屏蔽） |
 | **告警频道** | `/api/v1/alert-channels` | CRUD |
 | **通知媒介** | `/api/v1/notify-media` | CRUD、发送测试 |
 | **通知规则** | `/api/v1/notify-rules` | CRUD |
 | **消息模板** | `/api/v1/message-templates` | CRUD、预览渲染 |
 | **订阅规则** | `/api/v1/subscribe-rules` | CRUD |
-| **通知渠道（旧）** | `/api/v1/notify-channels` | CRUD、发送测试 |
-| **通知策略（旧）** | `/api/v1/notify-policies` | CRUD |
+| **通知渠道** | `/api/v1/notify-channels` | CRUD、发送测试 |
+| **通知策略** | `/api/v1/notify-policies` | CRUD |
 | **用户管理** | `/api/v1/users` | CRUD、启用/禁用、修改密码、创建虚拟用户 |
 | **团队管理** | `/api/v1/teams` | CRUD、成员管理 |
 | **业务组** | `/api/v1/biz-groups` | CRUD、树形列表、成员管理 |
 | **排班计划** | `/api/v1/schedules` | CRUD、班次管理、当前值班人、Override、自动生成班次 |
 | **升级策略** | `/api/v1/escalation-policies` | CRUD、步骤管理 |
 | **AI** | `/api/v1/ai` | 生成报告、SOP 推荐、配置读写、连通性测试 |
-| **飞书机器人** | `/api/v1/lark/bot` | 配置读写 |
-| **告警引擎** | `/api/v1/engine/status` | 获取引擎运行状态 |
-| **仪表盘** | `/api/v1/dashboard/stats` | 统计数据 |
+| **系统设置** | `/api/v1/settings` | AI / Lark Bot / OIDC / SMTP 配置读写 |
+| **告警引擎** | `/api/v1/engine` | 引擎状态 |
+| **仪表盘** | `/api/v1/dashboard` | 统计数据、MTTA/MTTR、趋势图、Top 规则、报表 CSV 导出 |
+| **操作审计** | `/api/v1/audit-logs` | 查询审计记录 |
 | **Webhook** | `/webhooks/alertmanager` | 接收 AlertManager/VMAlert Webhook（无需认证） |
 | **飞书事件回调** | `/lark/event` | 接收飞书机器人事件（无需认证，Token 验证） |
 | **告警操作页** | `/alert-action/:token` | 免登录告警操作（Token 鉴权） |
