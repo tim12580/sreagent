@@ -55,8 +55,10 @@ type zabbixAuthConfig struct {
 	Password string `json:"password"`
 }
 
-func (c *ZabbixChecker) CheckHealth(ctx context.Context, endpoint, authType, authConfig string) error {
-	url := strings.TrimRight(endpoint, "/") + "/api_jsonrpc.php"
+// CheckHealth calls apiinfo.version via JSON-RPC to verify the Zabbix API is reachable
+// and optionally tests auth credentials if configured (basic/token).
+func (c *ZabbixChecker) CheckHealth(ctx context.Context, endpoint, authType, authConfig string) HealthResult {
+	apiURL := strings.TrimRight(endpoint, "/") + "/api_jsonrpc.php"
 
 	reqBody := zabbixRequest{
 		JSONRPC: "2.0",
@@ -65,38 +67,60 @@ func (c *ZabbixChecker) CheckHealth(ctx context.Context, endpoint, authType, aut
 		ID:      1,
 	}
 
-	bodyBytes, err := json.Marshal(reqBody)
-	if err != nil {
-		return fmt.Errorf("failed to marshal request: %w", err)
-	}
+	bodyBytes, _ := json.Marshal(reqBody)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(bodyBytes))
+	start := time.Now()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(bodyBytes))
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+		return HealthResult{Healthy: false, LatencyMs: -1,
+			Message: fmt.Sprintf("failed to create request: %v", err)}
 	}
 	req.Header.Set("Content-Type", "application/json-rpc")
 
 	resp, err := httpClient.Do(req)
+	latency := time.Since(start).Milliseconds()
 	if err != nil {
-		return fmt.Errorf("health check request failed: %w", err)
+		return HealthResult{Healthy: false, LatencyMs: latency,
+			Message: fmt.Sprintf("API unreachable: %v", err)}
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read response: %w", err)
-	}
+	body, _ := io.ReadAll(resp.Body)
 
 	var zResp zabbixResponse
 	if err := json.Unmarshal(body, &zResp); err != nil {
-		return fmt.Errorf("failed to parse response: %w", err)
+		return HealthResult{Healthy: false, LatencyMs: latency,
+			Message: fmt.Sprintf("invalid JSON-RPC response: %v", err)}
 	}
-
 	if zResp.Error != nil {
-		return fmt.Errorf("zabbix api error: %s - %s", zResp.Error.Message, zResp.Error.Data)
+		return HealthResult{Healthy: false, LatencyMs: latency,
+			Message: fmt.Sprintf("Zabbix API error: %s — %s", zResp.Error.Message, zResp.Error.Data)}
 	}
 
-	return nil
+	// zResp.Result contains the version string for apiinfo.version (JSON-encoded string)
+	var version string
+	_ = json.Unmarshal(zResp.Result, &version)
+	msg := "Zabbix API is healthy"
+	if version != "" {
+		msg = fmt.Sprintf("Zabbix %s API is healthy", version)
+	}
+
+	// If auth credentials are provided, also verify they actually work
+	if authType == "basic" && authConfig != "" {
+		var cfg struct {
+			Username string `json:"username"`
+			Password string `json:"password"`
+		}
+		if err := json.Unmarshal([]byte(authConfig), &cfg); err == nil && cfg.Username != "" {
+			if _, authErr := zabbixAPIToken(ctx, apiURL, cfg.Username, cfg.Password); authErr != nil {
+				return HealthResult{Healthy: false, LatencyMs: latency,
+					Message: fmt.Sprintf("Zabbix auth failed: %v", authErr), Version: version}
+			}
+			msg += " (credentials verified)"
+		}
+	}
+
+	return HealthResult{Healthy: true, LatencyMs: latency, Message: msg, Version: version}
 }
 
 // zabbixAPIToken retrieves an API session token by logging in with username/password.

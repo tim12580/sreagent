@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"encoding/csv"
+	"fmt"
 	"sort"
 	"strconv"
 	"time"
@@ -486,4 +488,192 @@ func (h *DashboardHandler) GetSeverityHistory(c *gin.Context) {
 		result = append(result, SeverityHistoryPoint{Date: d, Counts: dateMap[d]})
 	}
 	Success(c, result)
+}
+
+// ExportReport streams a CSV report covering daily alert counts and MTTA/MTTR
+// for the requested date range (defaults to the last 30 days).
+// GET /api/v1/dashboard/export?start_date=2006-01-02&end_date=2006-01-02
+func (h *DashboardHandler) ExportReport(c *gin.Context) {
+	// ── Parse date range ──────────────────────────────────────────────────
+	const dateFmt = "2006-01-02"
+	now := time.Now()
+	endDate := now
+	startDate := now.AddDate(0, 0, -29) // default: last 30 days
+
+	if v := c.Query("start_date"); v != "" {
+		if t, err := time.Parse(dateFmt, v); err == nil {
+			startDate = t
+		}
+	}
+	if v := c.Query("end_date"); v != "" {
+		if t, err := time.Parse(dateFmt, v); err == nil {
+			endDate = t
+		}
+	}
+	if endDate.Before(startDate) {
+		endDate = startDate
+	}
+	// Clamp to prevent accidental huge ranges (max 366 days)
+	if endDate.Sub(startDate) > 366*24*time.Hour {
+		startDate = endDate.AddDate(0, 0, -365)
+	}
+
+	startTS := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, time.Local)
+	endTS := time.Date(endDate.Year(), endDate.Month(), endDate.Day(), 23, 59, 59, 999999999, time.Local)
+
+	// ── Per-day fired counts by severity ─────────────────────────────────
+	type sevDayRow struct {
+		Date     string
+		Severity string
+		Cnt      int64
+	}
+	var sevRows []sevDayRow
+	h.db.Model(&model.AlertEvent{}).
+		Select("DATE(fired_at) AS date, severity, COUNT(*) AS cnt").
+		Where("fired_at BETWEEN ? AND ? AND deleted_at IS NULL", startTS, endTS).
+		Group("DATE(fired_at), severity").
+		Order("date").
+		Scan(&sevRows)
+
+	// ── Per-day resolved counts ───────────────────────────────────────────
+	type dayCount struct {
+		Date string
+		Cnt  int64
+	}
+	var resolvedRows []dayCount
+	h.db.Model(&model.AlertEvent{}).
+		Select("DATE(resolved_at) AS date, COUNT(*) AS cnt").
+		Where("resolved_at BETWEEN ? AND ? AND deleted_at IS NULL", startTS, endTS).
+		Group("DATE(resolved_at)").
+		Scan(&resolvedRows)
+
+	// ── Per-day MTTA / MTTR (mean) ────────────────────────────────────────
+	type ttaRow struct {
+		Date   string
+		AvgSec *float64
+	}
+	var mttaRows, mttrRows []ttaRow
+	h.db.Model(&model.AlertEvent{}).
+		Select("DATE(fired_at) AS date, AVG(TIMESTAMPDIFF(SECOND, fired_at, acked_at)) AS avg_sec").
+		Where("fired_at BETWEEN ? AND ? AND acked_at IS NOT NULL AND deleted_at IS NULL", startTS, endTS).
+		Group("DATE(fired_at)").Scan(&mttaRows)
+	h.db.Model(&model.AlertEvent{}).
+		Select("DATE(fired_at) AS date, AVG(TIMESTAMPDIFF(SECOND, fired_at, resolved_at)) AS avg_sec").
+		Where("fired_at BETWEEN ? AND ? AND resolved_at IS NOT NULL AND deleted_at IS NULL", startTS, endTS).
+		Group("DATE(fired_at)").Scan(&mttrRows)
+
+	// ── Top rules in range ────────────────────────────────────────────────
+	type topRuleRow struct {
+		AlertName string
+		Cnt       int64
+		Critical  int64
+		Warning   int64
+		Info      int64
+	}
+	var topRows []topRuleRow
+	h.db.Model(&model.AlertEvent{}).
+		Select(`alert_name,
+			COUNT(*) AS cnt,
+			SUM(CASE WHEN severity='critical' THEN 1 ELSE 0 END) AS critical,
+			SUM(CASE WHEN severity='warning'  THEN 1 ELSE 0 END) AS warning,
+			SUM(CASE WHEN severity='info'     THEN 1 ELSE 0 END) AS info`).
+		Where("fired_at BETWEEN ? AND ? AND deleted_at IS NULL", startTS, endTS).
+		Group("alert_name").Order("cnt DESC").Limit(20).
+		Scan(&topRows)
+
+	// ── Merge into day-keyed maps ─────────────────────────────────────────
+	type daySummary struct {
+		Critical, Warning, Info, Resolved int64
+		AvgMTTA, AvgMTTR                 float64
+	}
+	dayMap := map[string]*daySummary{}
+	ensureDay := func(d string) *daySummary {
+		if dayMap[d] == nil {
+			dayMap[d] = &daySummary{AvgMTTA: -1, AvgMTTR: -1}
+		}
+		return dayMap[d]
+	}
+	for _, r := range sevRows {
+		s := ensureDay(r.Date)
+		switch r.Severity {
+		case "critical":
+			s.Critical = r.Cnt
+		case "warning":
+			s.Warning = r.Cnt
+		case "info":
+			s.Info = r.Cnt
+		}
+	}
+	for _, r := range resolvedRows {
+		ensureDay(r.Date).Resolved = r.Cnt
+	}
+	for _, r := range mttaRows {
+		if r.AvgSec != nil {
+			ensureDay(r.Date).AvgMTTA = *r.AvgSec / 60.0
+		}
+	}
+	for _, r := range mttrRows {
+		if r.AvgSec != nil {
+			ensureDay(r.Date).AvgMTTR = *r.AvgSec / 60.0
+		}
+	}
+
+	// Build sorted date list (fill every calendar day in range)
+	var dates []string
+	for d := startDate; !d.After(endDate); d = d.AddDate(0, 0, 1) {
+		key := d.Format(dateFmt)
+		ensureDay(key) // ensure entry exists even for quiet days
+		dates = append(dates, key)
+	}
+	sort.Strings(dates)
+
+	// ── Stream CSV ────────────────────────────────────────────────────────
+	fname := fmt.Sprintf("alert-report-%s-to-%s.csv",
+		startDate.Format("20060102"), endDate.Format("20060102"))
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", "attachment; filename="+fname)
+
+	w := csv.NewWriter(c.Writer)
+
+	// Section 1: daily summary
+	_ = w.Write([]string{"# Daily Alert Summary"})
+	_ = w.Write([]string{
+		"Date", "Total", "Critical", "Warning", "Info",
+		"Resolved", "Avg MTTA (min)", "Avg MTTR (min)",
+	})
+	fmtF := func(f float64) string {
+		if f < 0 {
+			return "-"
+		}
+		return fmt.Sprintf("%.1f", f)
+	}
+	for _, d := range dates {
+		s := dayMap[d]
+		total := s.Critical + s.Warning + s.Info
+		_ = w.Write([]string{
+			d,
+			strconv.FormatInt(total, 10),
+			strconv.FormatInt(s.Critical, 10),
+			strconv.FormatInt(s.Warning, 10),
+			strconv.FormatInt(s.Info, 10),
+			strconv.FormatInt(s.Resolved, 10),
+			fmtF(s.AvgMTTA),
+			fmtF(s.AvgMTTR),
+		})
+	}
+
+	// Section 2: top rules
+	_ = w.Write([]string{})
+	_ = w.Write([]string{"# Top Alert Rules"})
+	_ = w.Write([]string{"Rule Name", "Total", "Critical", "Warning", "Info"})
+	for _, r := range topRows {
+		_ = w.Write([]string{
+			r.AlertName,
+			strconv.FormatInt(r.Cnt, 10),
+			strconv.FormatInt(r.Critical, 10),
+			strconv.FormatInt(r.Warning, 10),
+			strconv.FormatInt(r.Info, 10),
+		})
+	}
+	w.Flush()
 }

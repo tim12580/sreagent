@@ -16,28 +16,51 @@ import (
 // VictoriaLogsChecker checks VictoriaLogs health.
 type VictoriaLogsChecker struct{}
 
-func (c *VictoriaLogsChecker) CheckHealth(ctx context.Context, endpoint, authType, authConfig string) error {
-	url := strings.TrimRight(endpoint, "/") + "/health"
+// CheckHealth performs a two-phase probe:
+//  1. GET /health — basic liveness
+//  2. POST /select/logsql/query with `* | limit 0` — verifies the LogsQL engine responds
+func (c *VictoriaLogsChecker) CheckHealth(ctx context.Context, endpoint, authType, authConfig string) HealthResult {
+	base := strings.TrimRight(endpoint, "/")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+	// ── Phase 1: liveness ────────────────────────────────────────────────────
+	if err := httpGet(ctx, base+"/health", authType, authConfig); err != nil {
+		return HealthResult{Healthy: false, LatencyMs: -1,
+			Message: fmt.Sprintf("liveness probe failed: %v", err)}
 	}
 
+	// ── Phase 2: LogsQL engine probe ─────────────────────────────────────────
+	start := time.Now()
+	apiURL := base + "/select/logsql/query"
+	now := time.Now()
+	form := url.Values{}
+	form.Set("query", "*")
+	form.Set("start", now.Add(-1*time.Minute).Format(time.RFC3339))
+	form.Set("end", now.Format(time.RFC3339))
+	form.Set("limit", "0") // zero limit — just test API responds, no data transfer
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return HealthResult{Healthy: false, LatencyMs: time.Since(start).Milliseconds(),
+			Message: fmt.Sprintf("failed to build query request: %v", err)}
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	applyAuth(req, authType, authConfig)
 
 	resp, err := httpClient.Do(req)
+	latency := time.Since(start).Milliseconds()
 	if err != nil {
-		return fmt.Errorf("health check request failed: %w", err)
+		return HealthResult{Healthy: false, LatencyMs: latency,
+			Message: fmt.Sprintf("query API unreachable: %v", err)}
 	}
 	defer resp.Body.Close()
-
+	// VictoriaLogs returns 200 OK even with 0 results; any non-200 is a problem.
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("health check returned status %d: %s", resp.StatusCode, string(body))
+		return HealthResult{Healthy: false, LatencyMs: latency,
+			Message: fmt.Sprintf("query API returned HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))}
 	}
 
-	return nil
+	return HealthResult{Healthy: true, LatencyMs: latency, Message: "VictoriaLogs is healthy"}
 }
 
 // VictoriaLogsInstantQuery executes a LogsQL query against VictoriaLogs and returns

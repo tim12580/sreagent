@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"time"
 
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -52,6 +53,43 @@ func (s *AuthService) GetProfile(ctx context.Context, userID uint) (*model.User,
 		return nil, apperr.ErrUserNotFound
 	}
 	return user, nil
+}
+
+// RefreshToken validates an existing token (which may be recently expired) and issues a new one.
+// The old token is accepted if:
+//  1. Its signature is valid.
+//  2. It was issued no more than refreshGraceDays ago (default 7 days).
+//
+// This avoids storing refresh tokens in the DB while still limiting the refresh window.
+func (s *AuthService) RefreshToken(ctx context.Context, tokenString string) (string, int, error) {
+	const refreshGraceDays = 7
+
+	claims, err := middleware.ParseTokenIgnoreExpiry(tokenString, s.jwtCfg.Secret)
+	if err != nil {
+		return "", 0, apperr.ErrInvalidCreds
+	}
+
+	// Reject tokens issued more than refreshGraceDays days ago
+	if claims.IssuedAt == nil || time.Since(claims.IssuedAt.Time) > time.Duration(refreshGraceDays)*24*time.Hour {
+		return "", 0, apperr.WithMessage(apperr.ErrInvalidCreds, "token is too old to refresh, please log in again")
+	}
+
+	// Re-validate the user still exists and is active
+	user, err := s.userRepo.GetByID(ctx, claims.UserID)
+	if err != nil {
+		return "", 0, apperr.ErrUserNotFound
+	}
+	if !user.IsActive {
+		return "", 0, apperr.WithMessage(apperr.ErrForbidden, "account is disabled")
+	}
+
+	newToken, err := middleware.GenerateToken(user.ID, user.Username, string(user.Role), s.jwtCfg.Secret, s.jwtCfg.Expire)
+	if err != nil {
+		s.logger.Error("failed to generate refresh token", zap.Error(err))
+		return "", 0, apperr.Wrap(apperr.ErrInternal, err)
+	}
+
+	return newToken, s.jwtCfg.Expire, nil
 }
 
 // HashPassword hashes a password using bcrypt.

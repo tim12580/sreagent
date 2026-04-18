@@ -87,11 +87,20 @@ func (s *DataSourceService) Delete(ctx context.Context, id uint) error {
 	return nil
 }
 
-// HealthCheck performs a connectivity check against the datasource.
-func (s *DataSourceService) HealthCheck(ctx context.Context, id uint) (model.DataSourceStatus, error) {
+// HealthCheckResult is the richer result returned to API callers.
+type HealthCheckResult struct {
+	Status    model.DataSourceStatus `json:"status"`
+	Message   string                 `json:"message"`
+	LatencyMs int64                  `json:"latency_ms"`
+	Version   string                 `json:"version,omitempty"`
+}
+
+// HealthCheck performs a multi-phase health probe against the datasource.
+// It updates the datasource status in the DB and returns the full result.
+func (s *DataSourceService) HealthCheck(ctx context.Context, id uint) (*HealthCheckResult, error) {
 	ds, err := s.repo.GetByID(ctx, id)
 	if err != nil {
-		return model.DSStatusUnknown, apperr.ErrDSNotFound
+		return nil, apperr.ErrDSNotFound
 	}
 
 	checker, err := datasource.NewChecker(string(ds.Type))
@@ -99,15 +108,24 @@ func (s *DataSourceService) HealthCheck(ctx context.Context, id uint) (model.Dat
 		s.logger.Warn("unsupported datasource type for health check",
 			zap.String("type", string(ds.Type)),
 		)
-		return model.DSStatusUnknown, nil
+		return &HealthCheckResult{Status: model.DSStatusUnknown, Message: "unsupported datasource type"}, nil
 	}
 
+	hr := checker.CheckHealth(ctx, ds.Endpoint, ds.AuthType, ds.AuthConfig)
+
 	status := model.DSStatusHealthy
-	if err := checker.CheckHealth(ctx, ds.Endpoint, ds.AuthType, ds.AuthConfig); err != nil {
+	if !hr.Healthy {
 		status = model.DSStatusUnhealthy
 		s.logger.Warn("datasource health check failed",
 			zap.String("datasource", ds.Name),
-			zap.Error(err),
+			zap.String("message", hr.Message),
+			zap.Int64("latency_ms", hr.LatencyMs),
+		)
+	} else {
+		s.logger.Info("datasource health check passed",
+			zap.String("datasource", ds.Name),
+			zap.String("version", hr.Version),
+			zap.Int64("latency_ms", hr.LatencyMs),
 		)
 	}
 
@@ -119,12 +137,12 @@ func (s *DataSourceService) HealthCheck(ctx context.Context, id uint) (model.Dat
 		)
 	}
 
-	s.logger.Info("health check completed",
-		zap.String("datasource", ds.Name),
-		zap.String("status", string(status)),
-	)
-
-	return status, nil
+	return &HealthCheckResult{
+		Status:    status,
+		Message:   hr.Message,
+		LatencyMs: hr.LatencyMs,
+		Version:   hr.Version,
+	}, nil
 }
 
 // QueryResponse holds the result of a datasource query test.

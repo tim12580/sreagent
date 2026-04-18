@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 
 	"github.com/sreagent/sreagent/internal/model"
 	apperr "github.com/sreagent/sreagent/internal/pkg/errors"
@@ -40,6 +41,9 @@ func (s *AlertEventService) SetOnCallResolver(r OnCallResolver) {
 func (s *AlertEventService) SetLarkService(svc *LarkService) {
 	s.larkSvc = svc
 }
+
+// DB returns the underlying database handle for advanced handler-level queries.
+func (s *AlertEventService) DB() *gorm.DB { return s.repo.DB() }
 
 func NewAlertEventService(
 	repo *repository.AlertEventRepository,

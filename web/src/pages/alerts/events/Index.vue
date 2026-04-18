@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { h, ref, computed, onMounted, onUnmounted } from 'vue'
+import { h, ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useMessage, NTag, NButton, NSpace } from 'naive-ui'
 
 type RowKey = string | number
 import { useI18n } from 'vue-i18n'
-import { alertEventApi } from '@/api'
-import type { AlertEvent, AlertViewMode } from '@/types'
+import { alertEventApi, alertExportApi, alertGroupsApi } from '@/api'
+import type { AlertEvent, AlertViewMode, AlertGroupItem } from '@/types'
 import { formatTime, formatDuration } from '@/utils/format'
 import { getSeverityType, getStatusLabelKey, statusTagColor, severityRowClass } from '@/utils/alert'
 import PageHeader from '@/components/common/PageHeader.vue'
-import { RefreshOutline, OptionsOutline, AlertCircleOutline } from '@vicons/ionicons5'
+import { RefreshOutline, OptionsOutline, AlertCircleOutline, DownloadOutline, LayersOutline, ListOutline } from '@vicons/ionicons5'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
@@ -227,6 +227,10 @@ const columns = [
 ]
 
 async function fetchEvents() {
+  if (groupedMode.value) {
+    fetchGroups()
+    return
+  }
   loading.value = true
   try {
     const timeRange = getTimeRange()
@@ -332,6 +336,50 @@ const activeFiltersCount = computed(() => {
   if (timeRangePreset.value !== '24h') n++
   return n
 })
+
+// ===== Grouped view =====
+const groupedMode = ref(false)
+const groups = ref<AlertGroupItem[]>([])
+const groupsLoading = ref(false)
+
+async function fetchGroups() {
+  groupsLoading.value = true
+  try {
+    const params: Record<string, string> = {}
+    if (statusFilter.value.length) params.status = statusFilter.value.join(',')
+    if (severityFilter.value.length) params.severity = severityFilter.value.join(',')
+    const { data } = await alertGroupsApi.list(params)
+    groups.value = data.data || []
+  } catch (err: any) {
+    message.error(err.message)
+  } finally {
+    groupsLoading.value = false
+  }
+}
+
+function toggleGroupedMode() {
+  groupedMode.value = !groupedMode.value
+  if (groupedMode.value) fetchGroups()
+}
+
+function handleExportCSV() {
+  const timeRange = getTimeRange()
+  const params = new URLSearchParams()
+  if (statusFilter.value.length) params.set('status', statusFilter.value.join(','))
+  if (severityFilter.value.length) params.set('severity', severityFilter.value.join(','))
+  if (alertNameSearch.value) params.set('alert_name', alertNameSearch.value)
+  if (sourceFilter.value) params.set('source', sourceFilter.value)
+  if (timeRange.start_time) params.set('start_time', timeRange.start_time)
+  if (timeRange.end_time) params.set('end_time', timeRange.end_time)
+  params.set('view_mode', viewMode.value)
+  const url = `/api/v1/alert-events/export?${params.toString()}`
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `alert-events-${new Date().toISOString().slice(0, 10)}.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
 </script>
 
 <template>
@@ -339,6 +387,14 @@ const activeFiltersCount = computed(() => {
     <PageHeader :title="t('alert.events')" :subtitle="t('alert.eventsSubtitle')">
       <template #actions>
         <n-text depth="3" style="font-size:13px">{{ t('alert.totalAlerts', { n: total }) }}</n-text>
+        <n-button size="small" :secondary="groupedMode" :type="groupedMode ? 'primary' : 'default'" @click="toggleGroupedMode">
+          <template #icon><n-icon :component="groupedMode ? ListOutline : LayersOutline" /></template>
+          {{ groupedMode ? t('alert.flatView') : t('alert.groupedView') }}
+        </n-button>
+        <n-button size="small" @click="handleExportCSV">
+          <template #icon><n-icon :component="DownloadOutline" /></template>
+          {{ t('alert.exportCSV') }}
+        </n-button>
         <n-button size="small" @click="fetchEvents" :loading="loading">
           <template #icon><n-icon :component="RefreshOutline" /></template>
           {{ t('common.refresh') }}
@@ -448,27 +504,64 @@ const activeFiltersCount = computed(() => {
       </div>
     </transition>
 
-    <!-- Events Table -->
-    <n-card :bordered="false" style="background:var(--sre-bg-card);border-radius:12px">
-      <n-data-table
-        :loading="loading"
-        :columns="columns"
-        :data="events"
-        :row-key="(row: AlertEvent) => row.id"
-        :row-class-name="severityRowClass"
-        :checked-row-keys="checkedRowKeys"
-        @update:checked-row-keys="onCheckedRowKeysUpdate"
-        :bordered="false"
-        scroll-x="1100"
-        :pagination="{
-          page, pageSize, itemCount: total,
-          showSizePicker: true,
-          pageSizes: [20, 50, 100],
-          onChange: (p: number) => { page = p; fetchEvents() },
-          onUpdatePageSize: (s: number) => { pageSize = s; page = 1; fetchEvents() },
-        }"
-      />
-    </n-card>
+    <!-- ===== Grouped View ===== -->
+    <template v-if="groupedMode">
+      <n-card :bordered="false" style="background:var(--sre-bg-card);border-radius:12px">
+        <n-spin :show="groupsLoading">
+          <n-empty v-if="!groupsLoading && groups.length === 0" :description="t('alert.noGroupedAlerts')" style="padding:40px 0" />
+          <div v-else class="group-list">
+            <div v-for="g in groups" :key="g.alert_name + g.source" class="group-card">
+              <div class="group-header">
+                <div class="group-name">
+                  <n-tag v-if="g.severity_breakdown['critical'] > 0" type="error" size="small" round>critical ×{{ g.severity_breakdown['critical'] }}</n-tag>
+                  <n-tag v-if="g.severity_breakdown['warning'] > 0" type="warning" size="small" round>warning ×{{ g.severity_breakdown['warning'] }}</n-tag>
+                  <n-tag v-if="g.severity_breakdown['info'] > 0" type="info" size="small" round>info ×{{ g.severity_breakdown['info'] }}</n-tag>
+                  <span class="group-alert-name">{{ g.alert_name }}</span>
+                  <span v-if="g.source" class="group-source">@ {{ g.source }}</span>
+                </div>
+                <div class="group-meta">
+                  <span class="group-count">{{ t('alert.groupTotal', { n: g.total_count }) }}</span>
+                  <n-tag v-if="g.max_fire_count > 5" type="error" size="tiny">{{ t('alert.noisyAlert', { n: g.max_fire_count }) }}</n-tag>
+                  <n-button size="tiny" quaternary @click="() => { alertNameSearch = g.alert_name; sourceFilter = g.source; groupedMode = false; page = 1; fetchEvents() }">
+                    {{ t('alert.viewEvents') }}
+                  </n-button>
+                </div>
+              </div>
+              <div class="group-status-row">
+                <span v-for="(cnt, st) in g.status_breakdown" :key="st" v-show="cnt > 0" class="status-chip" :class="`status-chip--${st}`">
+                  {{ st }} {{ cnt }}
+                </span>
+                <span class="group-time">{{ t('alert.latestFired') }}: {{ formatTime(g.latest_fired_at) }}</span>
+              </div>
+            </div>
+          </div>
+        </n-spin>
+      </n-card>
+    </template>
+
+    <!-- ===== Flat Events Table ===== -->
+    <template v-else>
+      <n-card :bordered="false" style="background:var(--sre-bg-card);border-radius:12px">
+        <n-data-table
+          :loading="loading"
+          :columns="columns"
+          :data="events"
+          :row-key="(row: AlertEvent) => row.id"
+          :row-class-name="severityRowClass"
+          :checked-row-keys="checkedRowKeys"
+          @update:checked-row-keys="onCheckedRowKeysUpdate"
+          :bordered="false"
+          scroll-x="1100"
+          :pagination="{
+            page, pageSize, itemCount: total,
+            showSizePicker: true,
+            pageSizes: [20, 50, 100],
+            onChange: (p: number) => { page = p; fetchEvents() },
+            onUpdatePageSize: (s: number) => { pageSize = s; page = 1; fetchEvents() },
+          }"
+        />
+      </n-card>
+    </template>
   </div>
 </template>
 
@@ -642,5 +735,78 @@ const activeFiltersCount = computed(() => {
 }
 :deep(.row-warning td) {
   background-color: rgba(242,201,125,0.03) !important;
+}
+
+/* ===== Grouped view ===== */
+.group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.group-card {
+  background: var(--sre-bg-elevated, rgba(255,255,255,0.04));
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px;
+  padding: 12px 16px;
+  transition: border-color 0.15s;
+}
+.group-card:hover { border-color: rgba(24,160,88,0.3); }
+.group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.group-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.group-alert-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--sre-text-primary);
+}
+.group-source {
+  font-size: 12px;
+  color: var(--sre-text-secondary);
+}
+.group-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.group-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sre-text-primary);
+}
+.group-status-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.status-chip {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 100px;
+  font-weight: 500;
+  background: rgba(255,255,255,0.05);
+  color: var(--sre-text-secondary);
+}
+.status-chip--firing    { background: rgba(232,128,128,0.15); color: #e88080; }
+.status-chip--acknowledged { background: rgba(242,201,125,0.15); color: #f2c97d; }
+.status-chip--assigned  { background: rgba(112,192,232,0.15); color: #70c0e8; }
+.status-chip--resolved  { background: rgba(24,160,88,0.15); color: #18a058; }
+.status-chip--silenced  { background: rgba(168,85,247,0.15); color: #a855f7; }
+.group-time {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--sre-text-secondary);
 }
 </style>

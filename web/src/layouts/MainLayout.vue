@@ -340,6 +340,25 @@ async function addNotifyConfig() {
   }
 }
 
+// ===== Lark Bind =====
+const larkOpenIdInput = ref('')
+const larkBindSaving = ref(false)
+
+async function saveLarkBind() {
+  const openId = larkOpenIdInput.value.trim()
+  if (!openId) return
+  larkBindSaving.value = true
+  try {
+    await authApi.bindLark(openId)
+    message.success(t('settings.larkBindSuccess'))
+    larkOpenIdInput.value = ''
+  } catch (err: any) {
+    message.error(err.message || t('common.failed'))
+  } finally {
+    larkBindSaving.value = false
+  }
+}
+
 async function removeNotifyConfig(mediaType: string) {
   try {
     await userNotifyConfigApi.deleteByType(mediaType)
@@ -635,6 +654,28 @@ async function toggleNotifyConfig(cfg: UserNotifyConfig, enabled: boolean) {
         <div class="modal-footer">
           <n-button type="primary" :loading="profileSaving" @click="addNotifyConfig">{{ t('profile.addNotify') }}</n-button>
         </div>
+      </n-tab-pane>
+
+      <!-- Tab 4: Lark Bind -->
+      <n-tab-pane name="lark" :tab="t('settings.larkBind')">
+        <n-space vertical size="large" style="padding: 8px 0">
+          <n-alert type="info" :title="t('settings.larkBind')" style="font-size:13px">
+            {{ t('settings.larkBindHint') }}
+          </n-alert>
+          <n-form label-placement="top" size="small">
+            <n-form-item :label="t('settings.larkOpenId')">
+              <n-input
+                v-model:value="larkOpenIdInput"
+                :placeholder="t('settings.larkOpenId')"
+                clearable
+                style="max-width: 360px"
+              />
+            </n-form-item>
+          </n-form>
+          <n-button type="primary" :loading="larkBindSaving" :disabled="!larkOpenIdInput.trim()" @click="saveLarkBind">
+            {{ t('settings.larkBind') }}
+          </n-button>
+        </n-space>
       </n-tab-pane>
 
     </n-tabs>

@@ -307,6 +307,24 @@ async function handleToggleEnabled(rule: MuteRule) {
   }
 }
 
+// Preview
+const showPreview = ref(false)
+const previewLoading = ref(false)
+const previewData = ref<Array<{ rule_id: number; rule_name: string; matched_count: number; matched_alerts: any[] }>>([])
+
+async function fetchPreview() {
+  previewLoading.value = true
+  showPreview.value = true
+  try {
+    const { data } = await muteRuleApi.preview()
+    previewData.value = data.data || []
+  } catch (err: any) {
+    message.error(err.message)
+  } finally {
+    previewLoading.value = false
+  }
+}
+
 onMounted(fetchRules)
 </script>
 
@@ -314,6 +332,9 @@ onMounted(fetchRules)
   <div class="mute-page">
     <PageHeader :title="t('mute.title')" :subtitle="t('mute.subtitle')">
       <template #actions>
+        <n-button @click="fetchPreview" :loading="previewLoading">
+          {{ t('mute.preview') }}
+        </n-button>
         <n-button @click="fetchRules" :loading="loading">
           <template #icon><n-icon :component="RefreshOutline" /></template>
           {{ t('common.refresh') }}
@@ -324,6 +345,35 @@ onMounted(fetchRules)
         </n-button>
       </template>
     </PageHeader>
+
+    <!-- Mute Preview Panel -->
+    <n-card v-if="showPreview" :bordered="false" style="background: var(--sre-bg-card); border-radius: 12px; margin-bottom: 16px">
+      <template #header>
+        <div style="display: flex; align-items: center; gap: 8px">
+          <span>{{ t('mute.previewTitle') }}</span>
+          <n-tag size="small" type="info">{{ t('mute.previewNow') }}</n-tag>
+        </div>
+      </template>
+      <n-spin :show="previewLoading">
+        <div v-if="previewData.length === 0 && !previewLoading" style="text-align:center; padding: 24px; color: var(--sre-text-secondary)">
+          {{ t('mute.previewEmpty') }}
+        </div>
+        <div v-for="item in previewData" :key="item.rule_id" style="margin-bottom: 16px">
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px">
+            <strong>{{ item.rule_name }}</strong>
+            <n-tag :type="item.matched_count > 0 ? 'warning' : 'success'" size="small" round>
+              {{ item.matched_count > 0 ? t('mute.previewMatched', { n: item.matched_count }) : t('mute.previewNoMatch') }}
+            </n-tag>
+          </div>
+          <div v-if="item.matched_alerts.length > 0" style="display: flex; flex-wrap: wrap; gap: 6px; padding-left: 12px">
+            <n-tag v-for="ev in item.matched_alerts.slice(0, 10)" :key="ev.id" size="small" bordered>
+              #{{ ev.id }} {{ ev.alert_name }}
+            </n-tag>
+            <n-tag v-if="item.matched_alerts.length > 10" size="small" type="info">+{{ item.matched_alerts.length - 10 }}</n-tag>
+          </div>
+        </div>
+      </n-spin>
+    </n-card>
 
     <n-card :bordered="false" style="background: var(--sre-bg-card); border-radius: 12px">
       <n-data-table

@@ -48,6 +48,16 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*model.U
 	return &user, nil
 }
 
+// GetByLarkUserID looks up a user by their Lark open_id stored in lark_user_id.
+func (r *UserRepository) GetByLarkUserID(ctx context.Context, larkUserID string) (*model.User, error) {
+	var user model.User
+	err := r.db.WithContext(ctx).Where("lark_user_id = ? AND lark_user_id != ''", larkUserID).First(&user).Error
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
 // GetByOIDCSubject looks up a user by OIDC subject identifier. Returns gorm.ErrRecordNotFound if not found.
 func (r *UserRepository) GetByOIDCSubject(ctx context.Context, sub string) (*model.User, error) {
 	var user model.User

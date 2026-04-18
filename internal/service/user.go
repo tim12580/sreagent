@@ -147,6 +147,22 @@ func (s *UserService) Update(ctx context.Context, user *model.User) error {
 	return nil
 }
 
+// BindLarkOpenID saves the user's Lark open_id (for bot command identity mapping).
+// Passing an empty string clears the binding.
+func (s *UserService) BindLarkOpenID(ctx context.Context, userID uint, openID string) error {
+	existing, err := s.repo.GetByID(ctx, userID)
+	if err != nil {
+		return apperr.ErrUserNotFound
+	}
+	existing.LarkUserID = openID
+	if err := s.repo.Update(ctx, existing); err != nil {
+		s.logger.Error("failed to bind lark open_id", zap.Error(err), zap.Uint("user_id", userID))
+		return apperr.Wrap(apperr.ErrDatabase, err)
+	}
+	s.logger.Info("lark open_id bound", zap.Uint("user_id", userID), zap.String("open_id", openID))
+	return nil
+}
+
 // ToggleActive enables or disables a user account.
 func (s *UserService) ToggleActive(ctx context.Context, id uint, active bool) error {
 	existing, err := s.repo.GetByID(ctx, id)

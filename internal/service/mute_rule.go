@@ -113,6 +113,11 @@ func (s *MuteRuleService) IsAlertMuted(ctx context.Context, event *model.AlertEv
 	return false
 }
 
+// MatchesRule is the exported wrapper — used by the preview handler.
+func (s *MuteRuleService) MatchesRule(rule *model.MuteRule, event *model.AlertEvent, now time.Time) bool {
+	return s.matchesRule(rule, event, now)
+}
+
 // matchesRule checks if a single mute rule matches an alert event.
 func (s *MuteRuleService) matchesRule(rule *model.MuteRule, event *model.AlertEvent, now time.Time) bool {
 	// 1. Check specific rule IDs if set

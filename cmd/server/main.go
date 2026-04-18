@@ -159,6 +159,7 @@ func main() {
 	}
 
 	larkBotSvc := service.NewLarkBotService(settingSvc, eventSvc, scheduleSvc, zapLogger)
+	larkBotSvc.SetUserRepository(userRepo)
 
 	// Initialize OIDC service (optional).
 	// Priority: DB settings (set via UI) override configmap/env values.
@@ -272,6 +273,7 @@ func main() {
 		zapLogger,
 	)
 	escalationExecutor.SetLarkService(larkSvc)
+	escalationExecutor.SetSettingService(settingSvc)
 	escalationExecutor.Start()
 
 	// Initialize alert evaluator
@@ -353,12 +355,15 @@ func main() {
 		AlertChannel:     handler.NewAlertChannelHandler(alertChannelSvc),
 		UserNotifyConfig: handler.NewUserNotifyConfigHandler(userNotifyConfigSvc),
 		AuditLog:         handler.NewAuditLogHandler(auditLogSvc),
+		SMTPSettings:     handler.NewSMTPSettingsHandler(settingSvc),
 	}
 
 	// Inject audit service into handlers that support it
 	handlers.AlertRule.SetAuditService(auditLogSvc)
 	handlers.AlertEvent.SetAuditService(auditLogSvc)
 	handlers.User.SetAuditService(auditLogSvc)
+	// Inject event service into mute rule handler for preview endpoint
+	handlers.MuteRule.SetAlertEventService(eventSvc)
 
 	// Setup router
 	r := router.Setup(cfg, handlers, zapLogger)

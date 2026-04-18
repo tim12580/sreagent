@@ -29,6 +29,9 @@ func NewAlertEventRepository(db *gorm.DB) *AlertEventRepository {
 	return &AlertEventRepository{db: db}
 }
 
+// DB returns the underlying *gorm.DB for use in custom queries.
+func (r *AlertEventRepository) DB() *gorm.DB { return r.db }
+
 func (r *AlertEventRepository) Create(ctx context.Context, event *model.AlertEvent) error {
 	return r.db.WithContext(ctx).Create(event).Error
 }

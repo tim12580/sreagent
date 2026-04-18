@@ -38,10 +38,23 @@ request.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-// Prevent multiple simultaneous 401 redirects
+// Prevent multiple simultaneous 401 redirects / refresh attempts
 let isRedirecting = false
+let refreshPromise: Promise<string> | null = null
 
-// Response interceptor
+function redirectToLogin() {
+  if (isRedirecting) return
+  isRedirecting = true
+  localStorage.removeItem('token')
+  localStorage.removeItem('user_role')
+  import('@/router').then(({ default: router }) => {
+    router.push({ name: 'Login', query: { redirect: router.currentRoute.value.fullPath } })
+  }).finally(() => {
+    setTimeout(() => { isRedirecting = false }, 2000)
+  })
+}
+
+// Response interceptor — auto-refresh token on 401 before giving up
 request.interceptors.response.use(
   (response) => {
     const data = response.data as ApiResponse
@@ -51,19 +64,32 @@ request.interceptors.response.use(
     }
     return response
   },
-  (error) => {
-    if (error.response?.status === 401 && !isRedirecting) {
-      isRedirecting = true
-      localStorage.removeItem('token')
-      localStorage.removeItem('user_role')
-      // Use Vue Router-style navigation to avoid full page reload
-      // Dynamically import to avoid circular dependency
-      import('@/router').then(({ default: router }) => {
-        router.push({ name: 'Login', query: { redirect: router.currentRoute.value.fullPath } })
-      }).finally(() => {
-        // Reset flag after a short delay so subsequent 401s can still trigger
-        setTimeout(() => { isRedirecting = false }, 2000)
-      })
+  async (error) => {
+    const originalRequest = error.config
+    if (error.response?.status === 401 && !originalRequest._retried) {
+      originalRequest._retried = true
+      const storedToken = localStorage.getItem('token')
+      if (storedToken && !isRedirecting) {
+        try {
+          // Deduplicate concurrent refresh calls
+          if (!refreshPromise) {
+            refreshPromise = (async () => {
+              const res = await axios.post('/api/v1/auth/refresh', { token: storedToken })
+              const newToken: string = res.data?.data?.token
+              if (!newToken) throw new Error('empty token')
+              return newToken
+            })().finally(() => { refreshPromise = null })
+          }
+          const newToken = await refreshPromise
+          localStorage.setItem('token', newToken)
+          originalRequest.headers.Authorization = `Bearer ${newToken}`
+          return request(originalRequest)
+        } catch {
+          redirectToLogin()
+          return Promise.reject(error)
+        }
+      }
+      redirectToLogin()
       return Promise.reject(error)
     }
     const data = error.response?.data as ApiResponse | undefined

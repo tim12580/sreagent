@@ -40,6 +40,7 @@ type Handlers struct {
 	AlertChannel     *handler.AlertChannelHandler
 	UserNotifyConfig *handler.UserNotifyConfigHandler
 	AuditLog         *handler.AuditLogHandler
+	SMTPSettings     *handler.SMTPSettingsHandler
 }
 
 // Setup initializes the Gin router with all routes and middleware.
@@ -80,6 +81,7 @@ func Setup(cfg *config.Config, handlers *Handlers, logger *zap.Logger) *gin.Engi
 	{
 		// Public routes
 		api.POST("/auth/login", handlers.Auth.Login)
+		api.POST("/auth/refresh", handlers.Auth.Refresh)
 
 		// OIDC routes (public — before JWT middleware)
 		if handlers.OIDC != nil {
@@ -109,6 +111,7 @@ func Setup(cfg *config.Config, handlers *Handlers, logger *zap.Logger) *gin.Engi
 			auth.GET("/auth/profile", handlers.Auth.GetProfile)
 			auth.PUT("/me/profile", handlers.Auth.UpdateMe)
 			auth.POST("/me/password", handlers.Auth.ChangeMyPassword)
+			auth.PUT("/me/lark-bind", handlers.Auth.BindLark)
 
 			// DataSources
 			ds := auth.Group("/datasources")
@@ -140,6 +143,8 @@ func Setup(cfg *config.Config, handlers *Handlers, logger *zap.Logger) *gin.Engi
 			events := auth.Group("/alert-events")
 			{
 				events.GET("", handlers.AlertEvent.List)
+				events.GET("/export", handlers.AlertEvent.Export)
+				events.GET("/groups", handlers.AlertEvent.ListGroups)
 				events.GET("/:id", handlers.AlertEvent.Get)
 				events.GET("/:id/timeline", handlers.AlertEvent.GetTimeline)
 				events.POST("/:id/acknowledge", operate, handlers.AlertEvent.Acknowledge)
@@ -156,6 +161,7 @@ func Setup(cfg *config.Config, handlers *Handlers, logger *zap.Logger) *gin.Engi
 			mutes := auth.Group("/mute-rules")
 			{
 				mutes.GET("", handlers.MuteRule.List)
+				mutes.GET("/preview", handlers.MuteRule.Preview)
 				mutes.GET("/:id", handlers.MuteRule.Get)
 				mutes.POST("", manage, handlers.MuteRule.Create)
 				mutes.PUT("/:id", manage, handlers.MuteRule.Update)
@@ -342,6 +348,16 @@ func Setup(cfg *config.Config, handlers *Handlers, logger *zap.Logger) *gin.Engi
 				}
 			}
 
+			// SMTP settings — admin only
+			if handlers.SMTPSettings != nil {
+				smtpSettings := auth.Group("/settings/smtp")
+				{
+					smtpSettings.GET("", adminOnly, handlers.SMTPSettings.GetConfig)
+					smtpSettings.PUT("", adminOnly, handlers.SMTPSettings.UpdateConfig)
+					smtpSettings.POST("/test", adminOnly, handlers.SMTPSettings.TestConnection)
+				}
+			}
+
 			// Engine status (simple, no process management)
 			if handlers.Engine != nil {
 				auth.GET("/engine/status", handlers.Engine.GetStatus)
@@ -357,6 +373,7 @@ func Setup(cfg *config.Config, handlers *Handlers, logger *zap.Logger) *gin.Engi
 			auth.GET("/dashboard/alert-trend", handlers.Dashboard.GetAlertTrend)
 			auth.GET("/dashboard/top-rules", handlers.Dashboard.GetTopRules)
 			auth.GET("/dashboard/severity-history", handlers.Dashboard.GetSeverityHistory)
+			auth.GET("/dashboard/export", handlers.Dashboard.ExportReport)
 		}
 	}
 

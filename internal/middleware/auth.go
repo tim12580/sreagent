@@ -102,6 +102,28 @@ func ParseToken(tokenString, secret string) (*Claims, error) {
 	return claims, nil
 }
 
+// ParseTokenIgnoreExpiry parses a JWT token without enforcing the expiry time.
+// The signature and all other claims are still validated.
+// Used by the refresh endpoint to allow recently-expired tokens to be renewed.
+func ParseTokenIgnoreExpiry(tokenString, secret string) (*Claims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{},
+		func(token *jwt.Token) (interface{}, error) {
+			return []byte(secret), nil
+		},
+		jwt.WithoutClaimsValidation(), // skip exp/nbf/iat checks; we validate manually below
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	claims, ok := token.Claims.(*Claims)
+	if !ok {
+		return nil, jwt.ErrSignatureInvalid
+	}
+
+	return claims, nil
+}
+
 // RequireRole returns a middleware that checks if the user has the required role.
 func RequireRole(roles ...string) gin.HandlerFunc {
 	roleSet := make(map[string]bool)

@@ -2,7 +2,7 @@
 
 > 本文件供 Claude Code / AI Vibe Coding 工具在新会话时快速接手项目，无需重新探索代码库。
 > 同步来源：`.opencode/context.md`（OpenCode 生成）+ 代码审阅。
-> **最后更新：2026-04-17（当前 tag: v1.5.0）**
+> **最后更新：2026-04-18（当前 tag: v1.6.0-dev）**
 
 ---
 
@@ -190,7 +190,7 @@ Engine fires
 
 ## 认证流程
 
-- **本地**：POST `/api/v1/auth/login` → JWT（24h，无 refresh）
+- **本地**：POST `/api/v1/auth/login` → JWT（24h）；POST `/api/v1/auth/refresh` → 7天宽限续签
 - **OIDC**：`/auth/oidc/login` → Keycloak → `/auth/oidc/callback` → JWT 通过 URL fragment 传前端
 - **默认账号**：`admin / admin123`（**首次登录必须修改密码**）
 
@@ -211,6 +211,7 @@ Engine fires
 
 | Tag | 主要内容 |
 |-----|---------|
+| **v1.6.0** | 系统级 SMTP 配置（`system_settings` group=smtp，UI settings→SMTP tab，支持 TLS/认证/测试发送）；升级策略 `email` 分支接入系统 SMTP 真实发送；JWT 7天宽限续签（`POST /auth/refresh`）+前端 Axios 401 自动刷新；头像 Go 层大小校验（≤272KB data URL）；`GET /alert-events/export` CSV 流式导出+前端导出按钮；`GET /mute-rules/preview` 命中预览+前端面板；Lark OpenID→DB User 映射（`user.lark_user_id` 字段 + `GetByLarkUserID`）；个人设置新增「飞书账号绑定」tab；数据源健康检查返回 latency/version 富结果 |
 | **v1.5.0** | 升级策略 `target=user/team/schedule` 的 `lark_personal` 分支接入 Lark Bot API（DM 到 user_id/open_id/union_id）；告警 AutoResolve 时同步 PATCH Lark 卡片；`LarkBotService.SendMessage` 改为优先用 Bot API 回复到触发指令的 chatID（Webhook 为兜底）；`NotifyChannel` Bot API 类型（带 chat_id）在 TestChannel 支持真发送测试卡片；`BotClient.SendDirectMessage`/`SendText` 暴露 user_id/open_id/union_id 多种 receive_id_type |
 | v1.3.1 | MTTA/MTTR 升级：P50/P95 百分位、按严重程度细分、MTTA/MTTR 每日趋势折线图；品牌 logo.svg（sider/login/favicon 统一）；个人信息头像扩展为 32 个预设 emoji + 自定义上传（≤200KB，base64 data URL）；修复顶部栏保存头像后仍显示用户名首字母的 bug；GitHub Actions 收敛为 linux/amd64 单架构 + `latest`+`v<tag>` 双标签 |
 | v1.3.0 | 设计系统级视觉翻新：CSS token（品牌色阶、间距、阴影、motion/typography）+ Naive UI GlobalThemeOverrides（dark + light）+ 侧栏/顶栏/登录页玻璃态皮肤 |
@@ -224,22 +225,22 @@ Engine fires
 
 | 功能 | 优先级 | 难度 | 状态/说明 |
 |------|:------:|:----:|---------|
-| 升级策略执行（target=user/team） | 高 | 中等 | ✅ v1.5.0 已实现：`lark_personal` 通过 Bot API DM（user_id/open_id/union_id）；email 分支待系统级 SMTP 配置支持 |
-| Lark 卡片状态更新 | 高 | 较难 | ✅ v1.5.0 已实现：`alert_event.go processAlert` auto-resolve 触发 PATCH；Acknowledge/Silence/Resolve 路径早已接线 |
-| Lark Bot 指令（@机器人） | 中 | 中等 | 部分实现：/health /oncall /ack /status 已接线；SendMessage 改为优先 Bot API 回复到 chatID；OpenID→User 映射仍用 systemUserID=1 |
+| 升级策略执行（target=user/team） | 高 | 中等 | ✅ 已实现：`lark_personal` Bot API DM；`email` 使用系统 SMTP 发送 |
+| Lark 卡片状态更新 | 高 | 较难 | ✅ 已实现：auto-resolve/Ack/Silence/Resolve 均触发 PATCH |
+| Lark Bot 指令（@机器人） | 中 | 中等 | ✅ 已实现：`resolveUserID` 通过 `lark_user_id` 查 DB 用户；用户可在个人设置绑定 Open ID |
+| 系统级 SMTP 配置 | 高 | 简单 | ✅ 已实现：`system_settings` group=smtp，UI 在设置→SMTP 邮件 tab |
+| 告警事件 CSV 导出 | 中 | 简单 | ✅ 已实现：`GET /api/v1/alert-events/export`，前端导出按钮 |
+| 屏蔽规则命中预览 | 中 | 中等 | ✅ 已实现：`GET /api/v1/mute-rules/preview`，前端预览面板 |
+| 头像后端大小校验 | 中 | 简单 | ✅ 已实现：`auth.UpdateMe` Go 层校验 data URL ≤ 272000 字节 |
+| JWT refresh token | 低 | 简单 | ✅ 已实现：`POST /api/v1/auth/refresh`，7天宽限续签；前端 Axios 拦截自动刷新 |
 | 告警降噪/聚合 | 中 | 较难 | 未实现；建议按 `labels + fingerprint prefix` 做时间窗口合并 |
-| 告警统计报表 | 中 | 中等 | 仅有仪表盘实时看板，未做周/月趋势导出（PDF/CSV） |
-| 头像后端大小校验 | 中 | 简单 | 当前仅前端限制 200KB data URL，`auth.UpdateMe` 未在 Go 层校验 `avatar` 长度 |
-| 告警静默窗口预览 | 中 | 中等 | 已有 MuteRule 规则，但无 "未来 24h 将被静默的告警" 的可视化 |
+| 告警统计报表周/月导出 | 低 | 中等 | 仅有仪表盘实时看板，未做 PDF/CSV 报表下载 |
 | SOP 知识库 | 低 | 较难 | 未实现 |
 | 多租户隔离 | 低 | 很难 | 未实现（目前 BizGroup 只作为告警作用域标签，非硬隔离） |
-| JWT refresh token | 低 | 简单 | 目前 JWT 24h 过期需重新登录，无 refresh endpoint |
 
 ---
 
 ## 已知限制
 
-- Lark Bot 指令 OpenID→DB User 映射未实现，`/ack` 使用 systemUserID=1 作为操作人
-- 升级策略 `email` 个人媒介需系统级 SMTP 配置（目前仅 log 跳过，建议用 email 类型 NotifyChannel 代替）
 - 告警引擎为内存状态机，默认 `replicas: 1`；多副本扩展需引入 Redis 分布式锁
-- 无 refresh token，JWT 24h 过期后需重新登录
+- Lark Bot `/ack` 若用户未绑定 Open ID，回落 systemUserID=1 作为操作人

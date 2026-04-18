@@ -26,6 +26,7 @@ import {
   TimeOutline,
   PeopleOutline,
   LayersOutline,
+  DownloadOutline,
 } from '@vicons/ionicons5'
 
 use([CanvasRenderer, PieChart, GaugeChart, LineChart, BarChart, TooltipComponent, LegendComponent, GridComponent])
@@ -384,6 +385,27 @@ async function fetchRecentAlerts() {
   }
 }
 
+// ===== Report Export =====
+const showExportModal = ref(false)
+// date picker uses [startTs, endTs] in ms; default last 30 days
+const exportRange = ref<[number, number]>([
+  Date.now() - 30 * 86400_000,
+  Date.now(),
+])
+
+function handleExportReport() {
+  if (!exportRange.value) return
+  const fmt = (ts: number) => new Date(ts).toISOString().slice(0, 10)
+  const url = dashboardApi.exportReportURL(fmt(exportRange.value[0]), fmt(exportRange.value[1]))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `alert-report-${fmt(exportRange.value[0])}-to-${fmt(exportRange.value[1])}.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  showExportModal.value = false
+}
+
 onMounted(() => {
   fetchStats()
   fetchEngineStatus()
@@ -396,7 +418,37 @@ onMounted(() => {
 
 <template>
   <div class="dashboard">
-    <PageHeader :title="t('dashboard.title')" :subtitle="t('dashboard.subtitle')" />
+    <PageHeader :title="t('dashboard.title')" :subtitle="t('dashboard.subtitle')">
+      <template #actions>
+        <n-button size="small" @click="showExportModal = true">
+          <template #icon><n-icon :component="DownloadOutline" /></template>
+          {{ t('dashboard.exportReport') }}
+        </n-button>
+      </template>
+    </PageHeader>
+
+    <!-- Export modal -->
+    <n-modal v-model:show="showExportModal" preset="card" :title="t('dashboard.exportReport')" style="max-width:420px">
+      <n-form label-placement="top" size="small">
+        <n-form-item :label="t('dashboard.exportDateRange')">
+          <n-date-picker
+            v-model:value="exportRange"
+            type="daterange"
+            clearable
+            style="width:100%"
+          />
+        </n-form-item>
+      </n-form>
+      <template #footer>
+        <n-space justify="end">
+          <n-button @click="showExportModal = false">{{ t('common.cancel') }}</n-button>
+          <n-button type="primary" :disabled="!exportRange" @click="handleExportReport">
+            <template #icon><n-icon :component="DownloadOutline" /></template>
+            {{ t('dashboard.downloadCSV') }}
+          </n-button>
+        </n-space>
+      </template>
+    </n-modal>
 
     <!-- Top stat cards row -->
     <n-spin :show="loading">

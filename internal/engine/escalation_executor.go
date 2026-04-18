@@ -19,18 +19,19 @@ import (
 // EscalationExecutor periodically checks firing alert events and executes escalation steps
 // when the configured delay has elapsed and the alert has not yet been resolved or acknowledged.
 type EscalationExecutor struct {
-	policyRepo          *repository.EscalationPolicyRepository
-	stepRepo            *repository.EscalationStepRepository
-	eventRepo           *repository.AlertEventRepository
-	timelineRepo        *repository.AlertTimelineRepository
-	channelRepo         *repository.NotifyChannelRepository
-	userRepo            *repository.UserRepository
-	notifySvc           *service.NotificationService
+	policyRepo           *repository.EscalationPolicyRepository
+	stepRepo             *repository.EscalationStepRepository
+	eventRepo            *repository.AlertEventRepository
+	timelineRepo         *repository.AlertTimelineRepository
+	channelRepo          *repository.NotifyChannelRepository
+	userRepo             *repository.UserRepository
+	notifySvc            *service.NotificationService
 	userNotifyConfigRepo *repository.UserNotifyConfigRepository
-	teamRepo            service.TeamRepository
-	onCallShiftRepo     *repository.OnCallShiftRepository
-	larkSvc             *service.LarkService // optional — enables lark_personal DM
-	logger              *zap.Logger
+	teamRepo             service.TeamRepository
+	onCallShiftRepo      *repository.OnCallShiftRepository
+	larkSvc              *service.LarkService        // optional — enables lark_personal DM
+	settingSvc           *service.SystemSettingService // optional — enables personal email via global SMTP
+	logger               *zap.Logger
 
 	interval time.Duration
 	stopCh   chan struct{}
@@ -41,6 +42,12 @@ type EscalationExecutor struct {
 // escalation notifications as direct messages via the Lark Bot API.
 func (e *EscalationExecutor) SetLarkService(svc *service.LarkService) {
 	e.larkSvc = svc
+}
+
+// SetSettingService injects the system setting service so the executor can
+// read global SMTP config for personal email escalation.
+func (e *EscalationExecutor) SetSettingService(svc *service.SystemSettingService) {
+	e.settingSvc = svc
 }
 
 // NewEscalationExecutor creates a new EscalationExecutor.
@@ -326,7 +333,7 @@ func (e *EscalationExecutor) dispatchToTarget(ctx context.Context, event *model.
 }
 
 // notifyUserPersonal sends a personal notification to a user via their UserNotifyConfig entries.
-// Supports "webhook" media type. "lark_personal" requires Bot API (future work).
+// Supports "webhook", "lark_personal" (Lark Bot DM), and "email" (global SMTP) media types.
 func (e *EscalationExecutor) notifyUserPersonal(ctx context.Context, event *model.AlertEvent, userID uint) error {
 	if e.userNotifyConfigRepo == nil {
 		e.logger.Warn("escalation: userNotifyConfigRepo not configured, skipping personal notify",
@@ -384,13 +391,62 @@ func (e *EscalationExecutor) notifyUserPersonal(ctx context.Context, event *mode
 				lastErr = err
 			}
 		case "email":
-			// UserNotifyConfig email config stores only the recipient address:
-			// {"email": "user@example.com"}. The email notify channel expects full SMTP
-			// credentials (host/port/user/pass). Until system-wide SMTP settings exist,
-			// escalation-based personal email is routed via a shared email channel rule
-			// rather than per-user config — log and skip here.
-			e.logger.Info("escalation: personal email requires system-wide SMTP config (not yet available); use an email notify channel instead",
-				zap.Uint("user_id", userID))
+			// UserNotifyConfig email config: {"email": "user@example.com"}
+			// Route via global SMTP if configured; otherwise skip with a log.
+			if e.settingSvc == nil {
+				e.logger.Info("escalation: personal email skipped (setting service not injected)",
+					zap.Uint("user_id", userID))
+				continue
+			}
+			smtpCfg, sErr := e.settingSvc.GetSMTPConfig(ctx)
+			if sErr != nil || !smtpCfg.Enabled || smtpCfg.SMTPHost == "" {
+				e.logger.Info("escalation: personal email skipped (global SMTP not configured)",
+					zap.Uint("user_id", userID))
+				continue
+			}
+			var emailCfg struct {
+				Email string `json:"email"`
+			}
+			if jErr := json.Unmarshal([]byte(cfg.Config), &emailCfg); jErr != nil || emailCfg.Email == "" {
+				e.logger.Warn("escalation: invalid personal email config", zap.Uint("user_id", userID))
+				continue
+			}
+			port := smtpCfg.SMTPPort
+			if port == 0 {
+				port = 587
+			}
+			from := smtpCfg.From
+			if from == "" {
+				from = smtpCfg.Username
+			}
+			// Build a synthetic email channel using global SMTP + user's email as recipient
+			type emailChanCfg struct {
+				SMTPHost   string   `json:"smtp_host"`
+				SMTPPort   int      `json:"smtp_port"`
+				SMTPTLS    bool     `json:"smtp_tls"`
+				Username   string   `json:"username"`
+				Password   string   `json:"password"`
+				From       string   `json:"from"`
+				Recipients []string `json:"recipients"`
+			}
+			chanBytes, _ := json.Marshal(emailChanCfg{
+				SMTPHost:   smtpCfg.SMTPHost,
+				SMTPPort:   port,
+				SMTPTLS:    smtpCfg.SMTPTLS,
+				Username:   smtpCfg.Username,
+				Password:   smtpCfg.Password,
+				From:       from,
+				Recipients: []string{emailCfg.Email},
+			})
+			syntheticEmailChannel := &model.NotifyChannel{
+				Type:   model.ChannelTypeEmail,
+				Config: string(chanBytes),
+			}
+			if err := e.notifySvc.SendNotification(ctx, event, syntheticEmailChannel, nil, nil); err != nil {
+				e.logger.Warn("escalation: personal email failed",
+					zap.Uint("user_id", userID), zap.String("to", emailCfg.Email), zap.Error(err))
+				lastErr = err
+			}
 		default:
 			e.logger.Warn("escalation: unsupported personal notify media type",
 				zap.String("media_type", cfg.MediaType), zap.Uint("user_id", userID))

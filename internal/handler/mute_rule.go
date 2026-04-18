@@ -11,12 +11,18 @@ import (
 
 // MuteRuleHandler handles mute rule API requests.
 type MuteRuleHandler struct {
-	svc *service.MuteRuleService
+	svc      *service.MuteRuleService
+	eventSvc *service.AlertEventService
 }
 
 // NewMuteRuleHandler creates a new MuteRuleHandler.
 func NewMuteRuleHandler(svc *service.MuteRuleService) *MuteRuleHandler {
 	return &MuteRuleHandler{svc: svc}
+}
+
+// SetAlertEventService injects the alert event service for the preview endpoint.
+func (h *MuteRuleHandler) SetAlertEventService(svc *service.AlertEventService) {
+	h.eventSvc = svc
 }
 
 // CreateMuteRuleRequest is the request body for creating a mute rule.
@@ -159,4 +165,60 @@ func (h *MuteRuleHandler) Delete(c *gin.Context) {
 	}
 
 	Success(c, nil)
+}
+
+// MutePreviewItem describes which currently-firing alerts a mute rule would suppress.
+type MutePreviewItem struct {
+	RuleID        uint          `json:"rule_id"`
+	RuleName      string        `json:"rule_name"`
+	MatchedCount  int           `json:"matched_count"`
+	MatchedAlerts []model.AlertEvent `json:"matched_alerts"`
+}
+
+// Preview returns a preview of which currently-firing alerts each enabled mute rule
+// would suppress right now.
+// GET /api/v1/mute-rules/preview
+func (h *MuteRuleHandler) Preview(c *gin.Context) {
+	if h.eventSvc == nil {
+		ErrorWithMessage(c, 50000, "alert event service not available")
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	// Fetch all enabled mute rules
+	rules, _, err := h.svc.List(ctx, 1, 1000)
+	if err != nil {
+		Error(c, err)
+		return
+	}
+
+	// Fetch all currently firing alerts (up to 500)
+	firingEvents, _, err := h.eventSvc.List(ctx, "firing", "", 1, 500)
+	if err != nil {
+		Error(c, err)
+		return
+	}
+
+	now := time.Now()
+	result := make([]MutePreviewItem, 0, len(rules))
+	for _, rule := range rules {
+		if !rule.IsEnabled {
+			continue
+		}
+		item := MutePreviewItem{
+			RuleID:        rule.ID,
+			RuleName:      rule.Name,
+			MatchedAlerts: []model.AlertEvent{},
+		}
+		for _, ev := range firingEvents {
+			if h.svc.MatchesRule(&rule, &ev, now) {
+				item.MatchedAlerts = append(item.MatchedAlerts, ev)
+			}
+		}
+		item.MatchedCount = len(item.MatchedAlerts)
+		result = append(result, item)
+	}
+
+	Success(c, result)
 }

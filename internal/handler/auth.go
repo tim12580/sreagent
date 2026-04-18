@@ -78,7 +78,61 @@ func (h *AuthHandler) UpdateMe(c *gin.Context) {
 		return
 	}
 
+	// Validate avatar size: base64 data URLs must not exceed 200 KB.
+	// A 200 KB binary file encodes to ~272,000 base64 characters.
+	if len(req.Avatar) > 0 && req.Avatar[:5] == "data:" && len(req.Avatar) > 272000 {
+		ErrorWithMessage(c, 10001, "avatar image must not exceed 200 KB")
+		return
+	}
+
 	if err := h.userSvc.UpdateProfile(c.Request.Context(), userID, req.DisplayName, req.Email, req.Phone, req.Avatar); err != nil {
+		Error(c, err)
+		return
+	}
+	Success(c, nil)
+}
+
+// Refresh issues a new JWT token given a valid or recently-expired token.
+// POST /api/v1/auth/refresh  — no JWTAuth middleware (token may be expired).
+func (h *AuthHandler) Refresh(c *gin.Context) {
+	var req struct {
+		Token string `json:"token" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		ErrorWithMessage(c, 10001, err.Error())
+		return
+	}
+
+	token, expiresIn, err := h.svc.RefreshToken(c.Request.Context(), req.Token)
+	if err != nil {
+		Error(c, err)
+		return
+	}
+
+	Success(c, LoginResponse{
+		Token:     token,
+		ExpiresIn: expiresIn,
+	})
+}
+
+// BindLark saves the current user's Lark open_id for bot command identity mapping.
+// PUT /me/lark-bind   body: {"lark_open_id": "ou_xxx"}
+func (h *AuthHandler) BindLark(c *gin.Context) {
+	if h.userSvc == nil {
+		ErrorWithMessage(c, 50000, "user service not available")
+		return
+	}
+	userID := GetCurrentUserID(c)
+
+	var req struct {
+		LarkOpenID string `json:"lark_open_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		ErrorWithMessage(c, 10001, err.Error())
+		return
+	}
+
+	if err := h.userSvc.BindLarkOpenID(c.Request.Context(), userID, req.LarkOpenID); err != nil {
 		Error(c, err)
 		return
 	}

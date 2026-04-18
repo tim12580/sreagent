@@ -34,6 +34,7 @@ import type {
   TopRuleItem,
   SeverityHistoryPoint,
   QueryResponse,
+  AlertGroupItem,
 } from '@/types'
 
 // ===== Auth API =====
@@ -49,6 +50,14 @@ export const authApi = {
 
   changeMyPassword: (data: { old_password: string; new_password: string }) =>
     request.post<ApiResponse<null>>('/me/password', data),
+
+  /** Refresh an existing JWT token (may be recently expired, within 7-day grace window) */
+  refreshToken: (token: string) =>
+    request.post<ApiResponse<LoginResponse>>('/auth/refresh', { token }),
+
+  /** Bind (or clear) the current user's Lark open_id for bot identity mapping */
+  bindLark: (larkOpenId: string) =>
+    request.put<ApiResponse<null>>('/me/lark-bind', { lark_open_id: larkOpenId }),
 
   /** Check if OIDC SSO is enabled and get the login URL */
   getOIDCConfig: () =>
@@ -299,6 +308,12 @@ export const muteRuleApi = {
 
   delete: (id: number) =>
     request.delete<ApiResponse<null>>(`/mute-rules/${id}`),
+
+  preview: () =>
+    request.get<ApiResponse<Array<{
+      rule_id: number; rule_name: string
+      matched_count: number; matched_alerts: AlertEvent[]
+    }>>>('/mute-rules/preview'),
 }
 
 // ===== Notify Rule API (v2) =====
@@ -460,6 +475,8 @@ export const dashboardApi = {
     request.get<ApiResponse<TopRuleItem[]>>('/dashboard/top-rules', { params: { days, limit } }),
   getSeverityHistory: (days = 30) =>
     request.get<ApiResponse<SeverityHistoryPoint[]>>('/dashboard/severity-history', { params: { days } }),
+  exportReportURL: (startDate: string, endDate: string) =>
+    `/api/v1/dashboard/export?start_date=${startDate}&end_date=${endDate}`,
 }
 
 // ===== AI API =====
@@ -527,4 +544,52 @@ export const oidcSettingsApi = {
     auto_provision?: boolean
   }) =>
     request.put<ApiResponse<{ message: string }>>('/settings/oidc', data),
+}
+
+// ===== SMTP Settings API =====
+export const smtpSettingsApi = {
+  getConfig: () =>
+    request.get<ApiResponse<{
+      smtp_host: string; smtp_port: number; smtp_tls: boolean
+      username: string; password: string; from: string; enabled: boolean
+    }>>('/settings/smtp'),
+
+  updateConfig: (data: {
+    smtp_host?: string; smtp_port?: number; smtp_tls?: boolean
+    username?: string; password?: string; from?: string; enabled?: boolean
+  }) => request.put<ApiResponse<null>>('/settings/smtp', data),
+
+  testConnection: (to: string) =>
+    request.post<ApiResponse<{ message: string }>>('/settings/smtp/test', { to }),
+}
+
+// ===== Mute Rule Preview API =====
+export const mutePreviewApi = {
+  preview: () =>
+    request.get<ApiResponse<Array<{
+      rule_id: number; rule_name: string
+      matched_count: number; matched_alerts: import('@/types').AlertEvent[]
+    }>>>('/mute-rules/preview'),
+}
+
+// ===== Alert Groups API =====
+export const alertGroupsApi = {
+  list: (params?: { status?: string; severity?: string }) =>
+    request.get<ApiResponse<AlertGroupItem[]>>('/alert-events/groups', { params }),
+}
+
+// ===== Alert Export API =====
+export const alertExportApi = {
+  exportCSV: (params?: {
+    status?: string; severity?: string; view_mode?: string
+    start?: string; end?: string
+  }) => {
+    const query = new URLSearchParams()
+    if (params?.status) query.set('status', params.status)
+    if (params?.severity) query.set('severity', params.severity)
+    if (params?.view_mode) query.set('view_mode', params.view_mode)
+    if (params?.start) query.set('start', params.start)
+    if (params?.end) query.set('end', params.end)
+    return `/api/v1/alert-events/export?${query.toString()}`
+  },
 }

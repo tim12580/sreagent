@@ -467,6 +467,17 @@ export interface SeverityHistoryPoint {
   counts: Record<string, number>
 }
 
+export interface AlertGroupItem {
+  alert_name: string
+  source: string
+  total_count: number
+  severity_breakdown: Record<string, number>
+  status_breakdown: Record<string, number>
+  latest_fired_at: string
+  oldest_fired_at: string
+  max_fire_count: number
+}
+
 // ===== Expression Test =====
 export interface QueryResponse {
   result_type: 'vector' | 'matrix' | 'logs'

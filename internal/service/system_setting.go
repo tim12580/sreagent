@@ -44,6 +44,7 @@ const (
 	groupAI   = "ai"
 	groupLark = "lark"
 	groupOIDC = "oidc"
+	groupSMTP = "smtp"
 
 	// cacheTTL is how long a cached config entry is considered fresh.
 	cacheTTL = 30 * time.Second
@@ -61,6 +62,19 @@ var sensitiveKeys = map[string]bool{
 	"lark.verification_token": true,
 	"lark.encrypt_key":        true,
 	"oidc.client_secret":      true,
+	"smtp.password":           true,
+}
+
+// SMTPConfig holds global SMTP configuration for system-wide email delivery.
+// Used by the escalation executor to send personal email notifications.
+type SMTPConfig struct {
+	SMTPHost string `json:"smtp_host"`
+	SMTPPort int    `json:"smtp_port"`
+	SMTPTLS  bool   `json:"smtp_tls"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	From     string `json:"from"`
+	Enabled  bool   `json:"enabled"`
 }
 
 // OIDCConfigDB holds OIDC/SSO integration configuration stored in the DB.
@@ -108,6 +122,9 @@ type SystemSettingService struct {
 
 	oidcMu    sync.RWMutex
 	oidcCache cachedConfig[OIDCConfigDB]
+
+	smtpMu    sync.RWMutex
+	smtpCache cachedConfig[SMTPConfig]
 }
 
 // NewSystemSettingService creates a new SystemSettingService.
@@ -439,6 +456,72 @@ func (s *SystemSettingService) SaveOIDCConfig(ctx context.Context, cfg OIDCConfi
 	s.oidcMu.Lock()
 	s.oidcCache = cachedConfig[OIDCConfigDB]{}
 	s.oidcMu.Unlock()
+	return nil
+}
+
+// ---- SMTP config -------------------------------------------------------------
+
+// GetSMTPConfig loads global SMTP configuration from cache or DB.
+func (s *SystemSettingService) GetSMTPConfig(ctx context.Context) (SMTPConfig, error) {
+	s.smtpMu.RLock()
+	if s.smtpCache.valid() {
+		cfg := s.smtpCache.value
+		s.smtpMu.RUnlock()
+		return cfg, nil
+	}
+	s.smtpMu.RUnlock()
+
+	kv, err := s.repo.ListByGroup(ctx, groupSMTP)
+	if err != nil {
+		return SMTPConfig{}, err
+	}
+	port := 587
+	if v, ok := kv["smtp_port"]; ok {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			port = n
+		}
+	}
+	cfg := SMTPConfig{
+		SMTPHost: kv["smtp_host"],
+		SMTPPort: port,
+		SMTPTLS:  parseBool(kv["smtp_tls"]),
+		Username: kv["username"],
+		Password: s.getDecrypted(groupSMTP, "password", kv["password"]),
+		From:     kv["from"],
+		Enabled:  parseBool(kv["enabled"]),
+	}
+
+	s.smtpMu.Lock()
+	s.smtpCache = cachedConfig[SMTPConfig]{value: cfg, expiresAt: time.Now().Add(cacheTTL)}
+	s.smtpMu.Unlock()
+	return cfg, nil
+}
+
+// SaveSMTPConfig persists global SMTP configuration to DB and invalidates cache.
+// Empty password means "do not overwrite existing password".
+func (s *SystemSettingService) SaveSMTPConfig(ctx context.Context, cfg SMTPConfig) error {
+	kv := map[string]string{
+		"smtp_host": cfg.SMTPHost,
+		"smtp_port": strconv.Itoa(cfg.SMTPPort),
+		"smtp_tls":  strconv.FormatBool(cfg.SMTPTLS),
+		"username":  cfg.Username,
+		"from":      cfg.From,
+		"enabled":   strconv.FormatBool(cfg.Enabled),
+	}
+	if cfg.Password != "" {
+		enc, err := s.setEncrypted(groupSMTP, "password", cfg.Password)
+		if err != nil {
+			s.logger.Error("failed to encrypt smtp.password", zap.Error(err))
+			return err
+		}
+		kv["password"] = enc
+	}
+	if err := s.repo.SetGroup(ctx, groupSMTP, kv); err != nil {
+		return err
+	}
+	s.smtpMu.Lock()
+	s.smtpCache = cachedConfig[SMTPConfig]{}
+	s.smtpMu.Unlock()
 	return nil
 }
 

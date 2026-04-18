@@ -176,7 +176,14 @@ async function handleDelete(id: number) {
 async function handleHealthCheck(id: number) {
   try {
     const { data } = await datasourceApi.healthCheck(id)
-    message.success(`${t('datasource.healthCheck')}: ${data.data.status}`)
+    const r = data.data
+    const latency = r.latency_ms >= 0 ? ` (${r.latency_ms}ms)` : ''
+    const version = r.version ? ` · ${r.version}` : ''
+    if (r.status === 'healthy') {
+      message.success(`✓ ${r.message}${latency}${version}`, { duration: 4000 })
+    } else {
+      message.error(`✗ ${r.message}${latency}`, { duration: 5000 })
+    }
     fetchList()
   } catch (err: any) {
     message.error(err.message)

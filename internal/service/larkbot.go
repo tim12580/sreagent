@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/sreagent/sreagent/internal/pkg/lark"
+	"github.com/sreagent/sreagent/internal/repository"
 )
 
 // LarkBotService handles Lark bot event callbacks and commands.
@@ -23,6 +24,7 @@ type LarkBotService struct {
 	settingSvc  *SystemSettingService
 	eventSvc    *AlertEventService
 	scheduleSvc *ScheduleService
+	userRepo    *repository.UserRepository // optional; enables OpenID→User mapping
 	client      *http.Client
 	logger      *zap.Logger
 }
@@ -38,6 +40,25 @@ func NewLarkBotService(settingSvc *SystemSettingService, eventSvc *AlertEventSer
 		},
 		logger: logger,
 	}
+}
+
+// SetUserRepository injects the user repository to enable Lark OpenID → DB user lookup.
+func (s *LarkBotService) SetUserRepository(repo *repository.UserRepository) {
+	s.userRepo = repo
+}
+
+// resolveUserID maps a Lark open_id to a DB user ID.
+// Falls back to systemUserID=1 when the mapping is not configured or the open_id is unknown.
+func (s *LarkBotService) resolveUserID(ctx context.Context, larkOpenID string) uint {
+	const systemUserID = 1
+	if s.userRepo == nil || larkOpenID == "" {
+		return systemUserID
+	}
+	user, err := s.userRepo.GetByLarkUserID(ctx, larkOpenID)
+	if err != nil {
+		return systemUserID
+	}
+	return user.ID
 }
 
 // loadConfig fetches the current Lark config from the DB.
@@ -310,7 +331,7 @@ func (s *LarkBotService) cmdOnCall(ctx context.Context, chatID string) error {
 }
 
 // cmdAck handles the /ack <alert_id> command.
-// Uses a system operator (ID=1) since Lark OpenID→User mapping is not implemented.
+// Resolves the Lark sender's open_id to a DB user; falls back to systemUserID=1 if unmapped.
 func (s *LarkBotService) cmdAck(ctx context.Context, args []string, chatID, userID string) error {
 	if len(args) == 0 {
 		return s.SendMessage(ctx, chatID, "Usage: /ack <alert_id>")
@@ -322,9 +343,8 @@ func (s *LarkBotService) cmdAck(ctx context.Context, args []string, chatID, user
 		return s.SendMessage(ctx, chatID, fmt.Sprintf("Invalid alert ID: %s. Please provide a numeric alert ID.", idStr))
 	}
 
-	// Use system user ID=1 as operator since Lark OpenID→DB User mapping is not configured
-	const systemUserID = 1
-	if err := s.eventSvc.Acknowledge(ctx, uint(alertID), systemUserID); err != nil {
+	operatorID := s.resolveUserID(ctx, userID)
+	if err := s.eventSvc.Acknowledge(ctx, uint(alertID), operatorID); err != nil {
 		return s.SendMessage(ctx, chatID, fmt.Sprintf("Failed to acknowledge alert #%d: %v", alertID, err))
 	}
 

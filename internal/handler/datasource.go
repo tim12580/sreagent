@@ -148,13 +148,13 @@ func (h *DataSourceHandler) HealthCheck(c *gin.Context) {
 		return
 	}
 
-	status, err := h.svc.HealthCheck(c.Request.Context(), id)
+	result, err := h.svc.HealthCheck(c.Request.Context(), id)
 	if err != nil {
 		Error(c, err)
 		return
 	}
 
-	Success(c, gin.H{"status": status})
+	Success(c, result)
 }
 
 // Query tests an expression against a datasource.
