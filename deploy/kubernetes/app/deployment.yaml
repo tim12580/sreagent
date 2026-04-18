@@ -9,7 +9,7 @@ metadata:
   namespace: sreagent
   labels:
     app: sreagent
-    version: latest
+    version: v1.6.0
 spec:
   # 单副本（告警引擎状态机）；若要多副本需在引擎层加分布式锁
   replicas: 1
@@ -25,7 +25,7 @@ spec:
     metadata:
       labels:
         app: sreagent
-        version: latest
+        version: v1.6.0
       annotations:
         # To trigger rolling restart on ConfigMap change, update this annotation manually:
         # kubectl annotate deployment sreagent --overwrite checksum/config=$(sha256sum configmap.yaml | cut -d' ' -f1)

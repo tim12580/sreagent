@@ -82,7 +82,7 @@ export const datasourceApi = {
     request.delete<ApiResponse<null>>(`/datasources/${id}`),
 
   healthCheck: (id: number) =>
-    request.post<ApiResponse<{ status: string }>>(`/datasources/${id}/health-check`),
+    request.post<ApiResponse<{ status: string; message: string; latency_ms: number; version: string }>>(`/datasources/${id}/health-check`),
 
   query: (id: number, data: { expression: string }) =>
     request.post<ApiResponse<QueryResponse>>(`/datasources/${id}/query`, data),
