@@ -1,1 +1,1 @@
-ALTER TABLE alert_rules DROP COLUMN IF EXISTS datasource_type;
+ALTER TABLE alert_rules DROP COLUMN datasource_type;
