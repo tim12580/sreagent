@@ -9,7 +9,9 @@ import {
 import type { GlobalThemeOverrides } from 'naive-ui'
 import { ref, provide, watch, onMounted, computed } from 'vue'
 import AuroraBackground from '@/components/common/AuroraBackground.vue'
-import SpotlightCursor from '@/components/common/SpotlightCursor.vue'
+// SpotlightCursor removed in v1.8.1 — mousemove → reactive inline style was
+// forcing a full-viewport radial-gradient repaint on every cursor frame,
+// causing visible input lag and menu-click white-screens.
 
 const savedTheme = localStorage.getItem('sre-theme')
 const isDark = ref(savedTheme ? savedTheme === 'dark' : true)
@@ -215,15 +217,15 @@ provide('isDark', isDark)
 <template>
   <NConfigProvider :theme="theme" :theme-overrides="themeOverrides">
     <AuroraBackground />
-    <SpotlightCursor />
     <NMessageProvider placement="top-right" :duration="2800" :max="4">
       <NDialogProvider>
         <NNotificationProvider placement="top-right" :max="4">
-          <router-view v-slot="{ Component, route }">
-            <transition name="sre-page" mode="out-in">
-              <component :is="Component" :key="route.path" />
-            </transition>
-          </router-view>
+          <!-- No outer transition here — MainLayout wraps router-view in its
+               own page transition. Running two nested <transition> with
+               mode="out-in" was causing the "white screen on menu click"
+               flash because the outer wrapper waited for the inner to
+               complete its leave+enter cycle before re-mounting. -->
+          <router-view />
         </NNotificationProvider>
       </NDialogProvider>
     </NMessageProvider>
@@ -234,25 +236,5 @@ provide('isDark', isDark)
 body {
   margin: 0;
   padding: 0;
-}
-
-/* ── Top-level page transition — keep it snappy ── */
-.sre-page-enter-active {
-  transition:
-    opacity   0.18s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
-}
-.sre-page-leave-active {
-  transition:
-    opacity   0.12s ease-in,
-    transform 0.12s ease-in;
-}
-.sre-page-enter-from {
-  opacity: 0;
-  transform: translateY(6px);
-}
-.sre-page-leave-to {
-  opacity: 0;
-  transform: translateY(-4px);
 }
 </style>

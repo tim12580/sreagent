@@ -588,12 +588,15 @@ async function toggleNotifyConfig(cfg: UserNotifyConfig, enabled: boolean) {
       </div>
 
       <!-- Main content -->
+      <!-- v1.8.1: dropped <transition name="page" mode="out-in"> — the
+           opacity-0 + translateY leave state of the previous page rendered
+           as a blank viewport for ~180ms on every menu click, which users
+           perceived as "menu click does nothing / white screen". The
+           Naive UI + Vue Router handoff is already smooth enough without
+           an extra page-level transition, and child components can opt
+           into their own entrance animation if needed. -->
       <n-layout-content class="sre-content" :native-scrollbar="false">
-        <router-view v-slot="{ Component }">
-          <transition name="page" mode="out-in">
-            <component :is="Component" />
-          </transition>
-        </router-view>
+        <router-view />
       </n-layout-content>
     </n-layout>
   </n-layout>
@@ -961,9 +964,11 @@ async function toggleNotifyConfig(cfg: UserNotifyConfig, enabled: boolean) {
   justify-content: space-between;
   padding: 0 var(--sre-space-6);
   border-bottom: 1px solid var(--sre-border);
-  background: color-mix(in srgb, var(--sre-bg-card) 82%, transparent);
-  backdrop-filter: saturate(140%) blur(10px);
-  -webkit-backdrop-filter: saturate(140%) blur(10px);
+  /* v1.8.1: dropped backdrop-filter — it was the single most expensive
+     GPU op in the app and the header is always in the composited tree,
+     so it forced a blur of the entire page on every scroll/repaint.
+     Solid tinted background reads identically and composites for free. */
+  background: var(--sre-bg-card);
   flex-shrink: 0;
   position: sticky;
   top: 0;
@@ -996,13 +1001,7 @@ async function toggleNotifyConfig(cfg: UserNotifyConfig, enabled: boolean) {
   min-height: calc(100vh - 60px);
 }
 
-/* Route transition */
-.page-enter-active, .page-leave-active {
-  transition: opacity var(--sre-duration-base) var(--sre-ease-out),
-              transform var(--sre-duration-base) var(--sre-ease-out);
-}
-.page-enter-from { opacity: 0; transform: translateY(6px); }
-.page-leave-to   { opacity: 0; transform: translateY(-4px); }
+/* Route transition removed — see template comment. */
 
 /* Subtle separator */
 .header-sep {
@@ -1216,18 +1215,10 @@ async function toggleNotifyConfig(cfg: UserNotifyConfig, enabled: boolean) {
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 
-/* Sidebar entrance on first load */
-.sre-sider { animation: sre-slide-right 0.3s var(--sre-ease-out) both; }
-@keyframes sre-slide-right {
-  from { opacity: 0; transform: translateX(-12px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-
-/* Header bar entrance */
-.header-bar { animation: sre-fade-in 0.25s var(--sre-ease-out) both; animation-delay: 60ms; }
-
-/* Content area entrance */
-.sre-content { animation: sre-fade-in 0.3s var(--sre-ease-out) both; animation-delay: 80ms; }
+/* v1.8.1: removed first-mount animations on sider/header/content.
+   The `animation-delay: 80ms` on .sre-content was showing an empty-looking
+   page for the delay duration whenever the layout re-mounted (e.g. after
+   hot-reload or full refresh), reinforcing the "app feels slow" complaint. */
 
 /* Logo text smooth appear on uncollapse */
 .logo-text {

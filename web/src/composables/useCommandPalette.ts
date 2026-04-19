@@ -62,7 +62,7 @@ export function useCommandPalette() {
 
   function runItem(item: PaletteItem) {
     if (item.group === 'navigate' || item.group === 'recent') {
-      pushRecent(item.id.startsWith('nav-') ? item.id : item.id)
+      pushRecent(item.id)
     }
     close()
     item.action()
@@ -116,6 +116,10 @@ export function useCommandPalette() {
   })
 
   function registerAction(item: Omit<PaletteItem, 'group'>) {
+    // De-dup: CommandPalette.vue's onMounted registers built-in actions on
+    // every remount (HMR, route remount). Without this guard the actions
+    // list doubled/tripled every hot reload.
+    if (registeredActions.value.some(a => a.id === item.id)) return
     registeredActions.value.push({ ...item, group: 'action' })
   }
 

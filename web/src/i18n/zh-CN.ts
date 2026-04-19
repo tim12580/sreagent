@@ -945,4 +945,20 @@ export default {
     exportCalendar: '导出日历',
     exportHint: '导出为 iCal 格式（.ics），可导入 Google 日历、Outlook、Apple 日历等',
   },
+  labelMatcher: {
+    addRow: '添加匹配条件',
+    opEq:     '等于',
+    opNeq:    '不等于',
+    opRegex:  '正则',
+    opNregex: '非正则',
+  },
+  palette: {
+    searchPlaceholder: '搜索页面、操作…',
+    noResults: '没有匹配 "{q}" 的结果',
+    recent: '最近',
+    navigate: '导航',
+    actions: '操作',
+    open: '打开',
+    close: '关闭',
+  },
 }

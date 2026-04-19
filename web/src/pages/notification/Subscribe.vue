@@ -55,7 +55,8 @@ const teamOptions = computed(() =>
   teams.value.map(t => ({ label: t.name, value: t.id }))
 )
 
-function getNotifyRuleName(ruleId: number): string {
+function getNotifyRuleName(ruleId: number | null): string {
+  if (ruleId == null) return '—'
   const rule = notifyRules.value.find(r => r.id === ruleId)
   return rule?.name || `#${ruleId}`
 }
@@ -239,7 +240,10 @@ async function handleSave() {
         return [m.key, v]
       })),
       severities: form.severities.join(','),
-      notify_rule_id: form.notify_rule_id || 0,
+      // v1.8.1: was `|| 0`, which silently coerced an un-picked value into
+       // the numeric id 0 on the backend and then failed the FK constraint.
+       // Leave it as null/undefined so the server treats it as "no override".
+      notify_rule_id: form.notify_rule_id || null,
       user_id: form.subscriber_type === 'user' ? form.user_id : null,
       team_id: form.subscriber_type === 'team' ? form.team_id : null,
       is_enabled: form.is_enabled,

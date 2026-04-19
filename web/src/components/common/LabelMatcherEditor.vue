@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { NAutoComplete, NSelect, NButton, NIcon } from 'naive-ui'
 import { AddOutline, CloseOutline } from '@vicons/ionicons5'
+import { useI18n } from 'vue-i18n'
 import { labelRegistryApi } from '@/api'
+
+const { t } = useI18n()
 
 export interface LabelMatcher {
   key: string
@@ -15,19 +18,21 @@ const props = withDefaults(defineProps<{
   datasourceId?: number
   addLabel?: string
 }>(), {
-  addLabel: '添加匹配条件',
+  // Fall back to i18n at render time (can't call t() in withDefaults).
+  addLabel: '',
 })
+const resolvedAddLabel = computed(() => props.addLabel || t('labelMatcher.addRow'))
 
 const emit = defineEmits<{
   'update:modelValue': [value: LabelMatcher[]]
 }>()
 
-const opOptions = [
-  { label: '= (等于)', value: '=' },
-  { label: '!= (不等于)', value: '!=' },
-  { label: '=~ (正则)', value: '=~' },
-  { label: '!~ (非正则)', value: '!~' },
-]
+const opOptions = computed(() => [
+  { label: `=  (${t('labelMatcher.opEq')})`,      value: '=' },
+  { label: `!= (${t('labelMatcher.opNeq')})`,     value: '!=' },
+  { label: `=~ (${t('labelMatcher.opRegex')})`,   value: '=~' },
+  { label: `!~ (${t('labelMatcher.opNregex')})`,  value: '!~' },
+])
 
 // Cache key and value suggestions
 const keyOptions = ref<string[]>([])
@@ -55,7 +60,9 @@ async function loadValues(key: string) {
   }
 }
 
-loadKeys()
+// Fire-and-forget: autocomplete suggestions are best-effort; void keeps
+// lint quiet and signals intent.
+void loadKeys()
 
 function addRow() {
   emit('update:modelValue', [...props.modelValue, { key: '', op: '=', value: '' }])
@@ -136,7 +143,7 @@ function valueAutocomplete(item: LabelMatcher) {
     </div>
     <n-button dashed size="small" @click="addRow">
       <template #icon><n-icon :component="AddOutline" /></template>
-      {{ addLabel }}
+      {{ resolvedAddLabel }}
     </n-button>
   </div>
 </template>

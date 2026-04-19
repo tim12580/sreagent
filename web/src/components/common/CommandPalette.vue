@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted, inject } from 'vue'
+// computed imported above; ensures groupLabel reacts to locale switches
 import type { Ref } from 'vue'
 import { useCommandPalette, type PaletteItem } from '@/composables/useCommandPalette'
 import { useI18n } from 'vue-i18n'
@@ -64,19 +65,19 @@ function onGlobalKeydown(e: KeyboardEvent) {
 onMounted(() => window.addEventListener('keydown', onGlobalKeydown))
 onUnmounted(() => window.removeEventListener('keydown', onGlobalKeydown))
 
-// Group helpers
-const groupLabel: Record<string, string> = {
-  recent: 'Recent',
-  navigate: 'Navigate',
-  action: 'Actions',
-}
+// Group helpers — i18n-backed so zh/en both render correctly.
+const groupLabel = computed<Record<string, string>>(() => ({
+  recent:   t('palette.recent'),
+  navigate: t('palette.navigate'),
+  action:   t('palette.actions'),
+}))
 
 function sections() {
   const f = filteredItems.value
   const out: { key: string; label: string; items: PaletteItem[] }[] = []
-  if (f.recent.length) out.push({ key: 'recent',   label: groupLabel.recent,   items: f.recent })
-  if (f.navigate.length) out.push({ key: 'navigate', label: groupLabel.navigate, items: f.navigate })
-  if (f.action.length) out.push({ key: 'action',   label: groupLabel.action,   items: f.action })
+  if (f.recent.length)   out.push({ key: 'recent',   label: groupLabel.value.recent,   items: f.recent })
+  if (f.navigate.length) out.push({ key: 'navigate', label: groupLabel.value.navigate, items: f.navigate })
+  if (f.action.length)   out.push({ key: 'action',   label: groupLabel.value.action,   items: f.action })
   return out
 }
 
@@ -111,7 +112,7 @@ function hintColor(item: PaletteItem) {
             ref="inputRef"
             v-model="query"
             class="cp-input"
-            placeholder="Search pages, actions…"
+            :placeholder="t('palette.searchPlaceholder')"
             autocomplete="off"
             spellcheck="false"
           />
@@ -121,7 +122,7 @@ function hintColor(item: PaletteItem) {
         <!-- Results -->
         <div class="cp-body">
           <template v-if="allItems.length === 0">
-            <div class="cp-empty">No results for "{{ query }}"</div>
+            <div class="cp-empty">{{ t('palette.noResults', { q: query }) }}</div>
           </template>
           <template v-for="(section, si) in sections()" :key="section.key">
             <div class="cp-group-label">{{ section.label }}</div>
@@ -141,9 +142,9 @@ function hintColor(item: PaletteItem) {
 
         <!-- Footer -->
         <div class="cp-footer">
-          <span class="cp-key-hint"><kbd>↑↓</kbd> Navigate</span>
-          <span class="cp-key-hint"><kbd>↵</kbd> Open</span>
-          <span class="cp-key-hint"><kbd>Esc</kbd> Close</span>
+          <span class="cp-key-hint"><kbd>↑↓</kbd> {{ t('palette.navigate') }}</span>
+          <span class="cp-key-hint"><kbd>↵</kbd> {{ t('palette.open') }}</span>
+          <span class="cp-key-hint"><kbd>Esc</kbd> {{ t('palette.close') }}</span>
         </div>
       </div>
     </transition>

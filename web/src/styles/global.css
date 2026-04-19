@@ -142,8 +142,10 @@
   --sre-aurora-2: #06b6d4;   /* teal */
   --sre-aurora-3: #a78bfa;   /* violet */
   --sre-aurora-4: #f472b6;   /* pink */
-  --sre-aurora-blur: 120px;
-  --sre-aurora-opacity: 0.28;
+  /* v1.8.1 perf: big blur + 4 orbs was saturating GPU composite, causing
+     perceptible menu-click jank. Reduce blur 120→60px and drop opacity. */
+  --sre-aurora-blur: 60px;
+  --sre-aurora-opacity: 0.18;
 
   /* Rotating conic (used for gradient borders + focus rings) */
   --sre-conic-brand: conic-gradient(
@@ -528,9 +530,17 @@ body.light-theme ::-webkit-scrollbar-thumb:hover { background: rgba(15, 23, 42, 
 
 /* Stronger glass (for modals, palette, hero cards) */
 .surface-glass-strong {
+  /* v1.8.1: backdrop-filter is the heaviest GPU op a browser can run and
+     we had 20+ cards per page using blur(22px). Now only modal/palette
+     (explicitly .surface-glass-modal) pay the blur cost; regular cards
+     use a semi-opaque tint that looks nearly identical on dark bg. */
+  background: color-mix(in srgb, var(--sre-bg-card) 92%, transparent);
+  border: 1px solid var(--sre-border-strong);
+}
+.surface-glass-modal {
   background: color-mix(in srgb, var(--sre-bg-card) 62%, transparent);
-  backdrop-filter: saturate(170%) blur(22px);
-  -webkit-backdrop-filter: saturate(170%) blur(22px);
+  backdrop-filter: saturate(170%) blur(18px);
+  -webkit-backdrop-filter: saturate(170%) blur(18px);
   border: 1px solid var(--sre-border-strong);
 }
 body.light-theme .surface-glass-strong {
@@ -554,13 +564,19 @@ body.light-theme .surface-glass-strong {
     linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
           mask-composite: exclude;
-  animation: sre-conic-rotate 10s linear infinite;
-  opacity: 0.55;
+  /* v1.8.1: removed `animation: sre-conic-rotate 10s linear infinite`.
+     Every conic-border card was running an infinite @property animation,
+     and with @property --sre-conic-angle registered globally, each card's
+     rotation forces a full repaint on every frame. With 10+ such cards
+     on Dashboard this was a major source of jank. The gradient itself
+     still reads fine as a static ring. */
+  opacity: 0.45;
   pointer-events: none;
 }
 .conic-border--critical::before {
   background: var(--sre-conic-critical);
-  animation-duration: 4s;
+  /* Critical borders keep a slow pulse — few on screen, signals urgency. */
+  animation: sre-conic-rotate 4s linear infinite;
   opacity: 0.95;
 }
 .conic-border--strong::before { opacity: 0.9; }

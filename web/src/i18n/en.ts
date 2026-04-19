@@ -924,4 +924,20 @@ export default {
     exportCalendar: 'Export Calendar',
     exportHint: 'Download as iCal (.ics) for Google Calendar, Outlook, Apple Calendar, etc.',
   },
+  labelMatcher: {
+    addRow: 'Add match condition',
+    opEq:     'equals',
+    opNeq:    'not equals',
+    opRegex:  'regex',
+    opNregex: 'not regex',
+  },
+  palette: {
+    searchPlaceholder: 'Search pages, actions…',
+    noResults: 'No results for "{q}"',
+    recent: 'Recent',
+    navigate: 'Navigate',
+    actions: 'Actions',
+    open: 'Open',
+    close: 'Close',
+  },
 }

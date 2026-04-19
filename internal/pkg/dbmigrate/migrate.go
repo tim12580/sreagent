@@ -28,14 +28,16 @@ var migrationsFS embed.FS
 // RunMigrations 将所有未执行的 SQL 迁移文件应用到数据库。
 // db 必须是已连接的 *sql.DB（从 gorm.DB.DB() 获取）。
 // 如果数据库已是最新版本，则静默跳过，不返回错误。
+//
+// 自愈逻辑：如果检测到 schema_migrations 处于 dirty 状态（某次迁移失败），
+// 会自动 Force 回退到上一个干净版本后重新 Up。这避免了每次手动到 DB 里改
+// schema_migrations 表的痛苦，对开发 / 滚动更新尤其重要。
 func RunMigrations(db *sql.DB, dbName string, logger *zap.Logger) error {
-	// 创建 iofs source
 	src, err := iofs.New(migrationsFS, "migrations")
 	if err != nil {
 		return fmt.Errorf("dbmigrate: create iofs source: %w", err)
 	}
 
-	// 创建 MySQL driver（使用已有连接，不新建）
 	driver, err := mysql.WithInstance(db, &mysql.Config{
 		DatabaseName: dbName,
 	})
@@ -46,6 +48,21 @@ func RunMigrations(db *sql.DB, dbName string, logger *zap.Logger) error {
 	m, err := migrate.NewWithInstance("iofs", src, "mysql", driver)
 	if err != nil {
 		return fmt.Errorf("dbmigrate: create migrator: %w", err)
+	}
+
+	// Dirty state auto-recovery.
+	if version, dirty, verErr := m.Version(); verErr == nil && dirty {
+		target := int(version) - 1
+		if target < 0 {
+			target = 0
+		}
+		logger.Warn("database migrations in dirty state, auto-forcing to previous clean version",
+			zap.Uint("dirty_version", version),
+			zap.Int("forced_to", target),
+		)
+		if ferr := m.Force(target); ferr != nil {
+			return fmt.Errorf("dbmigrate: force clean version: %w", ferr)
+		}
 	}
 
 	logger.Info("running database migrations...")

@@ -338,7 +338,8 @@ export interface SubscribeRule {
   is_enabled: boolean
   match_labels: Record<string, string>
   severities: string
-  notify_rule_id: number
+  // null ⇒ no override; server falls back to the default NotifyRule pipeline.
+  notify_rule_id: number | null
   user_id: number | null
   team_id: number | null
   created_by: number
