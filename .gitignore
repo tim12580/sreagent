@@ -14,6 +14,8 @@ coverage.txt
 # IDE
 .idea/
 .vscode/
+.claude/
+.opencode/
 *.swp
 *.swo
 *~
