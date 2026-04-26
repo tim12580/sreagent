@@ -1,6 +1,6 @@
 # SREAgent Platform — Architecture
 
-> Last updated: 2026-04-04 (post-Phase 7 QA — all 8 phases complete)
+> Last updated: 2026-04-26 (v1.9.10)
 
 ## Overview
 
@@ -99,7 +99,13 @@ sreagent/
 │   │   ├── biz_group.go            # BizGroup + BizGroupMember
 │   │   ├── schedule.go             # Schedule, Participant, Override, Shift
 │   │   ├── mute_rule.go            # MuteRule
-│   │   └── subscribe_rule.go       # SubscribeRule
+│   │   ├── inhibition_rule.go      # InhibitionRule (Alertmanager-style)
+│   │   ├── alert_channel.go        # AlertChannel (virtual receiver)
+│   │   ├── label_registry.go       # LabelRegistry (label autocomplete)
+│   │   ├── subscribe_rule.go       # SubscribeRule
+│   │   ├── user_notify_config.go   # UserNotifyConfig (per-user media)
+│   │   ├── webhook.go              # AlertManager webhook format structs
+│   │   └── rule_import.go          # Prometheus rule import format
 │   ├── handler/                    # Gin HTTP handlers
 │   │   ├── oidc.go                 # OIDC: LoginRedirect, Callback, CallbackJSON, Config
 │   │   ├── alert_event.go          # Alert lifecycle endpoints
@@ -145,11 +151,12 @@ sreagent/
 │   │   ├── redis/                  # Redis Client + RedisStateStore
 │   │   └── errors/                 # Structured error codes
 │   └── engine/
-│       ├── evaluator.go            # AlertEvaluator + RuleEvaluator (~318 lines)
+│       ├── evaluator.go            # AlertEvaluator + RuleEvaluator pool
 │       ├── rule_eval.go            # Per-rule state machine + persistence calls
-│       ├── state_store.go          # StateStore interface + StateEntry (with Annotations)
+│       ├── state_store.go          # StateStore interface + StateEntry
 │       ├── suppression.go          # LevelSuppressor (severity-based dedup)
-│       └── escalation_executor.go  # Runtime escalation executor (~260 lines)
+│       ├── escalation_executor.go  # Runtime escalation executor
+│       └── heartbeat_checker.go    # Heartbeat rule monitor
 ├── web/                            # Vue 3 frontend
 │   └── src/
 │       ├── api/
@@ -164,7 +171,7 @@ sreagent/
 │       │   ├── Login.vue           # Local + OIDC SSO, redirect support
 │       │   ├── dashboard/
 │       │   ├── datasources/
-│       │   ├── alerts/             # rules/ events/ history/ mute/
+│       │   ├── alerts/             # rules/ events/ history/ mute/ inhibition/
 │       │   ├── notification/       # Rules, Media, Templates, Subscribe, AlertChannels
 │       │   ├── settings/           # Index.vue + 6 sub-components
 │       │   └── schedule/           # Index.vue + 4 sub-components
@@ -187,10 +194,15 @@ sreagent/
 ├── .github/workflows/docker-build.yml  # CI: test → typecheck → build-and-push
 ├── Makefile                        # 14 targets (build, run, lint, docker-*, db-migrate, etc.)
 ├── go.mod                          # module github.com/sreagent/sreagent, go 1.25.0
+├── MODULES.md                      # Module inventory with status
+├── CHANGELOG.md                    # Structured change log
 └── docs/
     ├── architecture.md             # This file
+    ├── alert-engine.md             # Alert engine state machine & components
+    ├── notification.md             # Notification pipeline design
+    ├── api.md                      # REST API reference (120+ endpoints)
     ├── ci-deploy.md                # CI/CD pipeline documentation
-    ├── api.md                      # REST API reference (~87 endpoints)
+    ├── roadmap.md                  # Competitive analysis & feature roadmap
     └── product-design.md           # Product design document
 ```
 
