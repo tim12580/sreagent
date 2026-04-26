@@ -95,12 +95,39 @@ NotifyRule / MuteRule / InhibitionRule / SubscribeRule ── match labels → N
 
 ## 变更追踪规则（每次修改后自动执行，不需要用户提醒）
 
-1. 修改了模块功能 → 更新 MODULES.md 中对应模块的状态或描述
-2. 新增 API 端点 → 更新 docs/api.md
-3. 修改数据模型 → 更新 MODULES.md 数据模型关系
-4. 每次变更 → 在 CHANGELOG.md 顶部追加记录
-5. 新增模块 → 在 MODULES.md 添加完整条目 + 创建 docs/{module}.md + 在上方自动路由规则的关键词映射中添加对应关键词
-6. 涉及多模块 → 更新 MODULES.md 依赖关系图
+**所有变更必做**：在 CHANGELOG.md 顶部追加记录
+
+### 新增模块
+1. MODULES.md 添加完整条目（功能、文件、API、依赖、状态、测试覆盖）
+2. 创建 docs/{module}.md
+3. 自动路由规则关键词映射添加对应关键词
+4. MODULES.md 依赖关系图添加该模块
+
+### 删除/合并模块
+1. MODULES.md 删除/合并对应条目、依赖图、测试覆盖表
+2. 删除/合并 docs/{module}.md
+3. 自动路由规则关键词映射删除/迁移对应关键词
+
+### API 变更
+1. 新增端点 → 更新 docs/api.md
+2. 删除端点 → 从 docs/api.md 移除
+3. 修改端点（参数/响应）→ 更新 docs/api.md 对应段落
+
+### 数据模型变更
+1. 新增/修改字段 → 更新 MODULES.md 数据模型关系
+2. 新增迁移文件 → 遵循 `migrations/{序号}_{描述}.{up|down}.sql` 规范
+
+### 测试变更
+1. 新增测试 → 更新 MODULES.md 测试覆盖表（状态 + 覆盖率）
+2. Bug 修复带回归测试 → 同步更新覆盖表
+
+### 配置变更
+1. 新增/修改环境变量 → 更新 CLAUDE.md 环境变量段
+2. 新增配置项 → 更新 config.example.yaml
+
+### 版本发布
+1. 更新 CLAUDE.md 头部版本号
+2. 更新 MODULES.md 头部版本号
 
 ## 对话规范（自动生效）
 
