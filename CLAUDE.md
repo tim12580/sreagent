@@ -99,7 +99,7 @@ NotifyRule / MuteRule / InhibitionRule / SubscribeRule ── match labels → N
 2. 新增 API 端点 → 更新 docs/api.md
 3. 修改数据模型 → 更新 MODULES.md 数据模型关系
 4. 每次变更 → 在 CHANGELOG.md 顶部追加记录
-5. 新增模块 → 在 MODULES.md 添加完整条目 + 创建 docs/{module}.md
+5. 新增模块 → 在 MODULES.md 添加完整条目 + 创建 docs/{module}.md + 在上方自动路由规则的关键词映射中添加对应关键词
 6. 涉及多模块 → 更新 MODULES.md 依赖关系图
 
 ## 对话规范（自动生效）
