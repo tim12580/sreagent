@@ -1,47 +1,47 @@
-# SREAgent REST API Reference
+# SREAgent REST API 参考手册
 
-> Auto-generated from source code. Last updated: 2026-04-04.
+> 基于源码自动生成。最后更新：2026-04-04。
 
-## Table of Contents
+## 目录
 
-- [Conventions](#conventions)
-- [Authentication](#1-authentication)
-- [OIDC Single Sign-On](#2-oidc-single-sign-on)
-- [DataSources](#3-datasources)
-- [Alert Rules](#4-alert-rules)
-- [Alert Events](#5-alert-events)
-- [Mute Rules](#6-mute-rules)
-- [Notify Rules (v2)](#7-notify-rules-v2)
-- [Notify Media](#8-notify-media)
-- [Message Templates](#9-message-templates)
-- [Subscribe Rules](#10-subscribe-rules)
-- [Business Groups](#11-business-groups)
-- [Alert Channels](#12-alert-channels)
-- [User Notify Configs](#13-user-notify-configs)
-- [Notify Channels (v1)](#14-notify-channels-v1)
-- [Notify Policies (v1)](#15-notify-policies-v1)
-- [Users](#16-users)
-- [Teams](#17-teams)
-- [Schedules (On-Call)](#18-schedules-on-call)
-- [Escalation Policies](#19-escalation-policies)
+- [约定](#约定)
+- [认证](#1-认证)
+- [OIDC 单点登录](#2-oidc-单点登录)
+- [数据源](#3-数据源)
+- [告警规则](#4-告警规则)
+- [告警事件](#5-告警事件)
+- [静默规则](#6-静默规则)
+- [通知规则（v2）](#7-通知规则v2)
+- [通知媒介](#8-通知媒介)
+- [消息模板](#9-消息模板)
+- [订阅规则](#10-订阅规则)
+- [业务分组](#11-业务分组)
+- [告警通道](#12-告警通道)
+- [用户通知配置](#13-用户通知配置)
+- [通知渠道（v1）](#14-通知渠道v1)
+- [通知策略（v1）](#15-通知策略v1)
+- [用户](#16-用户)
+- [团队](#17-团队)
+- [值班管理](#18-值班管理)
+- [升级策略](#19-升级策略)
 - [AI](#20-ai)
-- [Lark Bot](#21-lark-bot)
-- [Engine](#22-engine)
-- [Dashboard](#23-dashboard)
-- [Webhooks](#24-webhooks)
-- [Alert Action Pages](#25-alert-action-pages)
+- [飞书机器人](#21-飞书机器人)
+- [引擎](#22-引擎)
+- [仪表盘](#23-仪表盘)
+- [Webhook](#24-webhook)
+- [告警操作页面](#25-告警操作页面)
 
 ---
 
-## Conventions
+## 约定
 
-### Base URL
+### 基础 URL
 
-All API routes are prefixed with `/api/v1` unless otherwise noted.
+所有 API 路由均以 `/api/v1` 为前缀，另有说明除外。
 
-### Response Envelope
+### 统一响应格式
 
-Every JSON endpoint returns a unified envelope:
+所有 JSON 端点返回统一的响应信封：
 
 ```json
 {
@@ -51,19 +51,19 @@ Every JSON endpoint returns a unified envelope:
 }
 ```
 
-- `code = 0` — success
-- `code != 0` — error (message field contains human-readable description)
+- `code = 0` — 成功
+- `code != 0` — 错误（message 字段包含可读的错误描述）
 
-### Pagination
+### 分页
 
-Paginated list endpoints accept:
+分页列表端点接受以下参数：
 
-| Param | Type | Default | Range | Description |
-|-------|------|---------|-------|-------------|
-| `page` | int | 1 | >= 1 | Page number |
-| `page_size` | int | 20 | 1–100 | Items per page |
+| 参数 | 类型 | 默认值 | 范围 | 说明 |
+|------|------|--------|------|------|
+| `page` | int | 1 | >= 1 | 页码 |
+| `page_size` | int | 20 | 1–100 | 每页条数 |
 
-Paginated responses wrap `data`:
+分页响应的 `data` 结构如下：
 
 ```json
 {
@@ -78,54 +78,54 @@ Paginated responses wrap `data`:
 }
 ```
 
-### Authentication
+### 认证
 
-Protected routes require a JWT token in the `Authorization` header:
+受保护的路由需要在 `Authorization` 请求头中携带 JWT 令牌：
 
 ```
 Authorization: Bearer <token>
 ```
 
-Tokens are obtained via `POST /api/v1/auth/login` or the OIDC callback flow.
+令牌通过 `POST /api/v1/auth/login` 或 OIDC 回调流程获取。
 
-### RBAC Roles
+### RBAC 角色
 
-Five roles, in descending privilege order:
+五种角色，按权限从高到低排列：
 
-| Role | Description |
-|------|-------------|
-| `admin` | Full access to all resources |
-| `team_lead` | Manage config objects (rules, channels, schedules, teams) |
-| `member` | Operational actions (acknowledge, resolve, subscribe) |
-| `viewer` | Read-only access to assigned resources |
-| `global_viewer` | Read-only access to all resources |
+| 角色 | 说明 |
+|------|------|
+| `admin` | 拥有所有资源的完全访问权限 |
+| `team_lead` | 管理配置对象（规则、渠道、排班、团队） |
+| `member` | 执行操作（确认、解决、订阅） |
+| `viewer` | 对分配的资源拥有只读权限 |
+| `global_viewer` | 对所有资源拥有只读权限 |
 
-Route access levels referenced below:
-- **Public** — no authentication required
-- **Any** — any authenticated user
-- **Operate** — `admin`, `team_lead`, or `member`
-- **Manage** — `admin` or `team_lead`
-- **Admin** — `admin` only
+下文引用的路由访问级别说明：
+- **公开** — 无需认证
+- **已认证** — 任何已认证用户
+- **操作权限** — `admin`、`team_lead` 或 `member`
+- **管理权限** — `admin` 或 `team_lead`
+- **仅管理员** — 仅 `admin`
 
-### Common Model Fields
+### 通用模型字段
 
-All entities include:
+所有实体均包含以下字段：
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | uint | Auto-increment primary key |
-| `created_at` | datetime | ISO 8601 |
-| `updated_at` | datetime | ISO 8601 |
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `id` | uint | 自增主键 |
+| `created_at` | datetime | ISO 8601 格式 |
+| `updated_at` | datetime | ISO 8601 格式 |
 
 ---
 
-## 1. Authentication
+## 1. 认证
 
-### POST `/api/v1/auth/login` — Login
+### POST `/api/v1/auth/login` — 登录
 
-**Access:** Public
+**访问级别：** 公开
 
-**Request:**
+**请求体：**
 
 ```json
 {
@@ -134,7 +134,7 @@ All entities include:
 }
 ```
 
-**Response:**
+**响应：**
 
 ```json
 {
@@ -146,41 +146,41 @@ All entities include:
 }
 ```
 
-### GET `/api/v1/auth/profile` — Get Current User
+### GET `/api/v1/auth/profile` — 获取当前用户信息
 
-**Access:** Any
+**访问级别：** 已认证
 
-**Response:** User object (see [Users](#16-users) model). Password is never included.
+**响应：** 用户对象（详见 [用户](#16-用户) 模型）。响应中不包含密码字段。
 
-### PUT `/api/v1/me/profile` — Update Own Profile
+### PUT `/api/v1/me/profile` — 更新个人资料
 
-**Access:** Any
+**访问级别：** 已认证
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `display_name` | string | |
-| `email` | string | |
-| `phone` | string | |
-| `avatar` | string | Base64 data URL or preset key |
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `display_name` | string | 显示名称 |
+| `email` | string | 邮箱 |
+| `phone` | string | 手机号 |
+| `avatar` | string | Base64 data URL 或预设头像标识 |
 
-### POST `/api/v1/me/password` — Change Own Password
+### POST `/api/v1/me/password` — 修改个人密码
 
-**Access:** Any
+**访问级别：** 已认证
 
-| Field | Type | Required | Validation |
-|-------|------|----------|------------|
-| `old_password` | string | yes | |
-| `new_password` | string | yes | min 6 chars |
+| 字段 | 类型 | 必填 | 校验规则 |
+|------|------|------|----------|
+| `old_password` | string | 是 | |
+| `new_password` | string | 是 | 至少 6 个字符 |
 
 ---
 
-## 2. OIDC Single Sign-On
+## 2. OIDC 单点登录
 
-### GET `/api/v1/auth/oidc/config` — OIDC Status
+### GET `/api/v1/auth/oidc/config` — OIDC 状态
 
-**Access:** Public
+**访问级别：** 公开
 
-**Response:**
+**响应：**
 
 ```json
 {
@@ -192,80 +192,80 @@ All entities include:
 }
 ```
 
-Returns `{"enabled": false}` when OIDC is not configured.
+未配置 OIDC 时返回 `{"enabled": false}`。
 
-### GET `/api/v1/auth/oidc/login` — Initiate OIDC Login
+### GET `/api/v1/auth/oidc/login` — 发起 OIDC 登录
 
-**Access:** Public
+**访问级别：** 公开
 
-Redirects (302) to the configured IdP authorization endpoint. Sets an `oidc_state` cookie for CSRF protection.
+重定向（302）到已配置的身份提供商授权端点。设置 `oidc_state` Cookie 用于 CSRF 防护。
 
-### GET `/api/v1/auth/oidc/callback` — OIDC Callback
+### GET `/api/v1/auth/oidc/callback` — OIDC 回调
 
-**Access:** Public
+**访问级别：** 公开
 
-Called by the IdP after authentication. On success, redirects the browser to:
+由身份提供商在认证完成后调用。成功后将浏览器重定向到：
 
 ```
 /?oidc_token=<jwt>&expires_in=<seconds>
 ```
 
-The frontend router guard intercepts the `oidc_token` query parameter and stores it.
+前端路由守卫拦截 `oidc_token` 查询参数并存储令牌。
 
-**Query Parameters:**
+**查询参数：**
 
-| Param | Description |
-|-------|-------------|
-| `code` | Authorization code from IdP |
-| `state` | CSRF state (validated against cookie) |
-| `error` | Error code (optional) |
-| `error_description` | Error details (optional) |
+| 参数 | 说明 |
+|------|------|
+| `code` | 身份提供商返回的授权码 |
+| `state` | CSRF 状态值（与 Cookie 中的值进行校验） |
+| `error` | 错误码（可选） |
+| `error_description` | 错误详情（可选） |
 
-### POST `/api/v1/auth/oidc/token` — Exchange Code for Token (JSON)
+### POST `/api/v1/auth/oidc/token` — 用授权码换取令牌（JSON）
 
-**Access:** Public
+**访问级别：** 公开
 
-For SPA clients that prefer a JSON flow instead of redirects.
+适用于偏好 JSON 流程而非重定向的 SPA 客户端。
 
-**Request:**
+**请求体：**
 
 ```json
 { "code": "abc123" }
 ```
 
-**Response:** Same as login response (`token`, `expires_in`).
+**响应：** 与登录响应相同（`token`、`expires_in`）。
 
 ---
 
-## 3. DataSources
+## 3. 数据源
 
-Manage Prometheus, VictoriaMetrics, VictoriaLogs, and Zabbix data sources.
+管理 Prometheus、VictoriaMetrics、VictoriaLogs 和 Zabbix 数据源。
 
-**Model fields:** `name`, `type` (prometheus | victoriametrics | zabbix | victorialogs), `endpoint`, `description`, `labels` (map), `status` (healthy | unhealthy | unknown), `auth_type` (none | basic | bearer | api_key), `auth_config` (JSON), `health_check_interval`, `is_enabled`.
+**模型字段：** `name`、`type`（prometheus | victoriametrics | zabbix | victorialogs）、`endpoint`、`description`、`labels`（map）、`status`（healthy | unhealthy | unknown）、`auth_type`（none | basic | bearer | api_key）、`auth_config`（JSON）、`health_check_interval`、`is_enabled`。
 
-| Method | Route | Access | Description |
-|--------|-------|--------|-------------|
-| GET | `/datasources` | Any | List (paginated). Filter: `?type=prometheus` |
-| GET | `/datasources/:id` | Any | Get by ID |
-| POST | `/datasources` | Admin | Create |
-| PUT | `/datasources/:id` | Admin | Update |
-| DELETE | `/datasources/:id` | Admin | Delete |
-| POST | `/datasources/:id/health-check` | Manage | Trigger health check |
+| 方法 | 路由 | 访问级别 | 说明 |
+|------|------|----------|------|
+| GET | `/datasources` | 已认证 | 列表（分页）。筛选：`?type=prometheus` |
+| GET | `/datasources/:id` | 已认证 | 按 ID 获取 |
+| POST | `/datasources` | 仅管理员 | 创建 |
+| PUT | `/datasources/:id` | 仅管理员 | 更新 |
+| DELETE | `/datasources/:id` | 仅管理员 | 删除 |
+| POST | `/datasources/:id/health-check` | 管理权限 | 触发健康检查 |
 
-**Create / Update Body:**
+**创建 / 更新请求体：**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | yes | Unique name |
-| `type` | string | yes | One of the supported types |
-| `endpoint` | string | yes | URL |
-| `description` | string | no | |
-| `labels` | map[string]string | no | Key-value metadata |
-| `auth_type` | string | no | Default: `none` |
-| `auth_config` | string (JSON) | no | Auth-specific config |
-| `health_check_interval` | int | no | Seconds |
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `name` | string | 是 | 唯一名称 |
+| `type` | string | 是 | 支持的类型之一 |
+| `endpoint` | string | 是 | URL 地址 |
+| `description` | string | 否 | 描述 |
+| `labels` | map[string]string | 否 | 键值对元数据 |
+| `auth_type` | string | 否 | 默认：`none` |
+| `auth_config` | string (JSON) | 否 | 认证相关配置 |
+| `health_check_interval` | int | 否 | 健康检查间隔（秒） |
 
-**Health Check Response:**
+**健康检查响应：**
 
 ```json
 { "code": 0, "data": { "status": "healthy" } }
@@ -273,133 +273,133 @@ Manage Prometheus, VictoriaMetrics, VictoriaLogs, and Zabbix data sources.
 
 ---
 
-## 4. Alert Rules
+## 4. 告警规则
 
-Define evaluation rules using PromQL, LogsQL, or other query expressions.
+使用 PromQL、LogsQL 或其他查询表达式定义评估规则。
 
-**Model fields:** `name`, `display_name`, `description`, `datasource_id`, `expression`, `for_duration`, `severity` (critical | warning | info), `labels` (map), `annotations` (map), `status` (enabled | disabled | muted), `group_name`, `version`, `eval_interval`, `recovery_hold`, `nodata_enabled`, `nodata_duration`, `suppress_enabled`, `biz_group_id`, `created_by`, `updated_by`.
+**模型字段：** `name`、`display_name`、`description`、`datasource_id`、`expression`、`for_duration`、`severity`（critical | warning | info）、`labels`（map）、`annotations`（map）、`status`（enabled | disabled | muted）、`group_name`、`version`、`eval_interval`、`recovery_hold`、`nodata_enabled`、`nodata_duration`、`suppress_enabled`、`biz_group_id`、`created_by`、`updated_by`。
 
-| Method | Route | Access | Description |
-|--------|-------|--------|-------------|
-| GET | `/alert-rules` | Any | List (paginated). Filters: `?severity=critical&status=enabled&group_name=infra` |
-| GET | `/alert-rules/:id` | Any | Get by ID |
-| GET | `/alert-rules/export` | Any | Export as YAML. Filter: `?group_name=infra` |
-| POST | `/alert-rules` | Manage | Create |
-| PUT | `/alert-rules/:id` | Manage | Update |
-| DELETE | `/alert-rules/:id` | Manage | Delete |
-| PATCH | `/alert-rules/:id/status` | Manage | Toggle status |
-| POST | `/alert-rules/import` | Manage | Import from YAML/JSON file |
+| 方法 | 路由 | 访问级别 | 说明 |
+|------|------|----------|------|
+| GET | `/alert-rules` | 已认证 | 列表（分页）。筛选：`?severity=critical&status=enabled&group_name=infra` |
+| GET | `/alert-rules/:id` | 已认证 | 按 ID 获取 |
+| GET | `/alert-rules/export` | 已认证 | 导出为 YAML。筛选：`?group_name=infra` |
+| POST | `/alert-rules` | 管理权限 | 创建 |
+| PUT | `/alert-rules/:id` | 管理权限 | 更新 |
+| DELETE | `/alert-rules/:id` | 管理权限 | 删除 |
+| PATCH | `/alert-rules/:id/status` | 管理权限 | 切换状态 |
+| POST | `/alert-rules/import` | 管理权限 | 从 YAML/JSON 文件导入 |
 
-**Create / Update Body:**
+**创建 / 更新请求体：**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | yes | Rule identifier |
-| `display_name` | string | no | Human-readable name |
-| `description` | string | no | |
-| `datasource_id` | uint | yes | FK to datasource |
-| `expression` | string | yes | PromQL / LogsQL expression |
-| `for_duration` | string | no | e.g. `"5m"` |
-| `severity` | string | yes | critical, warning, info |
-| `labels` | map[string]string | no | Additional labels |
-| `annotations` | map[string]string | no | Annotations (summary, description) |
-| `group_name` | string | no | Rule group |
-| `eval_interval` | int | no | Evaluation interval in seconds |
-| `recovery_hold` | int | no | Hold before auto-resolve (seconds) |
-| `nodata_enabled` | bool | no | Fire on no-data |
-| `nodata_duration` | int | no | No-data threshold (seconds) |
-| `suppress_enabled` | bool | no | Enable level-based suppression |
-| `biz_group_id` | *uint | no | Business group affiliation |
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `name` | string | 是 | 规则标识符 |
+| `display_name` | string | 否 | 人类可读的名称 |
+| `description` | string | 否 | 描述 |
+| `datasource_id` | uint | 是 | 关联数据源 ID |
+| `expression` | string | 是 | PromQL / LogsQL 表达式 |
+| `for_duration` | string | 否 | 例如 `"5m"` |
+| `severity` | string | 是 | critical、warning、info |
+| `labels` | map[string]string | 否 | 附加标签 |
+| `annotations` | map[string]string | 否 | 注解（摘要、描述） |
+| `group_name` | string | 否 | 规则分组 |
+| `eval_interval` | int | 否 | 评估间隔（秒） |
+| `recovery_hold` | int | 否 | 自动恢复前的等待时间（秒） |
+| `nodata_enabled` | bool | 否 | 数据缺失时是否触发告警 |
+| `nodata_duration` | int | 否 | 数据缺失阈值（秒） |
+| `suppress_enabled` | bool | 否 | 启用基于级别的抑制 |
+| `biz_group_id` | *uint | 否 | 所属业务分组 |
 
-**Toggle Status Body:**
+**切换状态请求体：**
 
 ```json
 { "status": "enabled" }
 ```
 
-**Import** — `multipart/form-data`:
+**导入** — `multipart/form-data`：
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `file` | file | `.yaml` / `.yml` / `.json` (Prometheus rule file format) |
-| `datasource_id` | string | Default datasource for imported rules |
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `file` | file | `.yaml` / `.yml` / `.json`（Prometheus 规则文件格式） |
+| `datasource_id` | string | 导入规则的默认数据源 |
 
-**Import Response:**
+**导入响应：**
 
 ```json
 { "code": 0, "data": { "total": 10, "success": 9, "failed": 1, "errors": ["..."] } }
 ```
 
-**Export** — Returns `application/x-yaml` Content-Type with `Content-Disposition: attachment`.
+**导出** — 返回 `application/x-yaml` Content-Type，带有 `Content-Disposition: attachment` 头。
 
 ---
 
-## 5. Alert Events
+## 5. 告警事件
 
-Live and historical alert instances generated by the evaluation engine or received via webhooks.
+由评估引擎生成或通过 Webhook 接收的实时和历史告警实例。
 
-**Model fields:** `fingerprint`, `rule_id`, `alert_name`, `severity`, `status` (firing | acknowledged | assigned | silenced | resolved | closed), `labels` (map), `annotations` (map), `source`, `generator_url`, `fired_at`, `acked_at`, `resolved_at`, `closed_at`, `acked_by`, `assigned_to`, `silenced_until`, `silence_reason`, `resolution`, `fire_count`, `oncall_user_id`, `is_dispatched`.
+**模型字段：** `fingerprint`、`rule_id`、`alert_name`、`severity`、`status`（firing | acknowledged | assigned | silenced | resolved | closed）、`labels`（map）、`annotations`（map）、`source`、`generator_url`、`fired_at`、`acked_at`、`resolved_at`、`closed_at`、`acked_by`、`assigned_to`、`silenced_until`、`silence_reason`、`resolution`、`fire_count`、`oncall_user_id`、`is_dispatched`。
 
-| Method | Route | Access | Description |
-|--------|-------|--------|-------------|
-| GET | `/alert-events` | Any | List (paginated). Filters: `?status=firing&severity=critical&view_mode=mine` |
-| GET | `/alert-events/:id` | Any | Get by ID |
-| GET | `/alert-events/:id/timeline` | Any | Get event timeline (state changes, comments) |
-| POST | `/alert-events/:id/acknowledge` | Operate | Acknowledge alert |
-| POST | `/alert-events/:id/assign` | Operate | Assign to user |
-| POST | `/alert-events/:id/resolve` | Operate | Resolve alert |
-| POST | `/alert-events/:id/close` | Operate | Close alert |
-| POST | `/alert-events/:id/comment` | Operate | Add comment |
-| POST | `/alert-events/:id/silence` | Operate | Silence alert |
-| POST | `/alert-events/batch/acknowledge` | Operate | Batch acknowledge |
-| POST | `/alert-events/batch/close` | Operate | Batch close |
+| 方法 | 路由 | 访问级别 | 说明 |
+|------|------|----------|------|
+| GET | `/alert-events` | 已认证 | 列表（分页）。筛选：`?status=firing&severity=critical&view_mode=mine` |
+| GET | `/alert-events/:id` | 已认证 | 按 ID 获取 |
+| GET | `/alert-events/:id/timeline` | 已认证 | 获取事件时间线（状态变更、评论） |
+| POST | `/alert-events/:id/acknowledge` | 操作权限 | 确认告警 |
+| POST | `/alert-events/:id/assign` | 操作权限 | 指派给用户 |
+| POST | `/alert-events/:id/resolve` | 操作权限 | 解决告警 |
+| POST | `/alert-events/:id/close` | 操作权限 | 关闭告警 |
+| POST | `/alert-events/:id/comment` | 操作权限 | 添加评论 |
+| POST | `/alert-events/:id/silence` | 操作权限 | 静默告警 |
+| POST | `/alert-events/batch/acknowledge` | 操作权限 | 批量确认 |
+| POST | `/alert-events/batch/close` | 操作权限 | 批量关闭 |
 
-**List Filters:**
+**列表筛选参数：**
 
-| Param | Type | Description |
-|-------|------|-------------|
-| `status` | string | firing, acknowledged, assigned, silenced, resolved, closed |
-| `severity` | string | critical, warning, info |
-| `view_mode` | string | `mine` (assigned to me), `unassigned`, `all` (default) |
-| `user_id` | uint | Admin override for view_mode=mine |
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `status` | string | firing、acknowledged、assigned、silenced、resolved、closed |
+| `severity` | string | critical、warning、info |
+| `view_mode` | string | `mine`（指派给我）、`unassigned`（未指派）、`all`（默认） |
+| `user_id` | uint | 管理员可用此参数覆盖 view_mode=mine |
 
-**Assign Body:**
+**指派请求体：**
 
 ```json
 { "assign_to": 5, "note": "Please investigate" }
 ```
 
-**Resolve Body:**
+**解决请求体：**
 
 ```json
 { "resolution": "Fixed the root cause by scaling the service" }
 ```
 
-**Close Body:**
+**关闭请求体：**
 
 ```json
 { "note": "False positive" }
 ```
 
-**Comment Body:**
+**评论请求体：**
 
 ```json
 { "note": "Investigating the issue now" }
 ```
 
-**Silence Body:**
+**静默请求体：**
 
 ```json
 { "duration_minutes": 60, "reason": "Maintenance window" }
 ```
 
-**Batch Acknowledge / Close Body:**
+**批量确认 / 关闭请求体：**
 
 ```json
 { "ids": [1, 2, 3] }
 ```
 
-**Batch Response:**
+**批量操作响应：**
 
 ```json
 { "code": 0, "data": { "success": 3, "failed": 0 } }
@@ -407,96 +407,96 @@ Live and historical alert instances generated by the evaluation engine or receiv
 
 ---
 
-## 6. Mute Rules
+## 6. 静默规则
 
-Suppress notifications for alerts matching specified criteria during defined time windows.
+在指定时间窗口内，对匹配特定条件的告警抑制通知。
 
-**Model fields:** `name`, `description`, `match_labels` (map), `severities` (comma-separated), `start_time`, `end_time`, `periodic_start`, `periodic_end`, `days_of_week`, `timezone`, `is_enabled`, `rule_ids` (comma-separated), `created_by`.
+**模型字段：** `name`、`description`、`match_labels`（map）、`severities`（逗号分隔）、`start_time`、`end_time`、`periodic_start`、`periodic_end`、`days_of_week`、`timezone`、`is_enabled`、`rule_ids`（逗号分隔）、`created_by`。
 
-| Method | Route | Access | Description |
-|--------|-------|--------|-------------|
-| GET | `/mute-rules` | Any | List (paginated) |
-| GET | `/mute-rules/:id` | Any | Get by ID |
-| POST | `/mute-rules` | Manage | Create |
-| PUT | `/mute-rules/:id` | Manage | Update |
-| DELETE | `/mute-rules/:id` | Manage | Delete |
+| 方法 | 路由 | 访问级别 | 说明 |
+|------|------|----------|------|
+| GET | `/mute-rules` | 已认证 | 列表（分页） |
+| GET | `/mute-rules/:id` | 已认证 | 按 ID 获取 |
+| POST | `/mute-rules` | 管理权限 | 创建 |
+| PUT | `/mute-rules/:id` | 管理权限 | 更新 |
+| DELETE | `/mute-rules/:id` | 管理权限 | 删除 |
 
-**Create / Update Body:**
+**创建 / 更新请求体：**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | yes | |
-| `description` | string | no | |
-| `match_labels` | map[string]string | no | Label matchers |
-| `severities` | string | no | e.g. `"critical,warning"` |
-| `start_time` | datetime | no | One-time window start (ISO 8601) |
-| `end_time` | datetime | no | One-time window end |
-| `periodic_start` | string | no | Daily start, e.g. `"02:00"` |
-| `periodic_end` | string | no | Daily end, e.g. `"06:00"` |
-| `days_of_week` | string | no | e.g. `"1,2,3,4,5"` (Mon=1) |
-| `timezone` | string | no | Default: `"Asia/Shanghai"` |
-| `is_enabled` | bool | no | |
-| `rule_ids` | string | no | Comma-separated alert rule IDs |
-
----
-
-## 7. Notify Rules (v2)
-
-Advanced notification rules with pipeline processing and per-rule notify configurations.
-
-**Model fields:** `name`, `description`, `is_enabled`, `severities`, `match_labels` (map), `pipeline` (JSON), `notify_configs` (JSON), `repeat_interval`, `callback_url`, `created_by`.
-
-| Method | Route | Access | Description |
-|--------|-------|--------|-------------|
-| GET | `/notify-rules` | Any | List (paginated) |
-| GET | `/notify-rules/:id` | Any | Get by ID |
-| POST | `/notify-rules` | Manage | Create |
-| PUT | `/notify-rules/:id` | Manage | Update |
-| DELETE | `/notify-rules/:id` | Manage | Delete |
-
-**Create / Update Body:**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | yes | |
-| `description` | string | no | |
-| `is_enabled` | bool | no | |
-| `severities` | string | no | Comma-separated |
-| `match_labels` | map[string]string | no | Label matchers |
-| `pipeline` | string (JSON) | no | Processing pipeline steps |
-| `notify_configs` | string (JSON) | no | Notification config array |
-| `repeat_interval` | int | no | Seconds between repeat notifications |
-| `callback_url` | string | no | Webhook callback URL |
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `name` | string | 是 | 名称 |
+| `description` | string | 否 | 描述 |
+| `match_labels` | map[string]string | 否 | 标签匹配器 |
+| `severities` | string | 否 | 例如 `"critical,warning"` |
+| `start_time` | datetime | 否 | 一次性窗口开始时间（ISO 8601） |
+| `end_time` | datetime | 否 | 一次性窗口结束时间 |
+| `periodic_start` | string | 否 | 每日开始时间，例如 `"02:00"` |
+| `periodic_end` | string | 否 | 每日结束时间，例如 `"06:00"` |
+| `days_of_week` | string | 否 | 例如 `"1,2,3,4,5"`（周一=1） |
+| `timezone` | string | 否 | 默认：`"Asia/Shanghai"` |
+| `is_enabled` | bool | 否 | 是否启用 |
+| `rule_ids` | string | 否 | 逗号分隔的告警规则 ID |
 
 ---
 
-## 8. Notify Media
+## 7. 通知规则（v2）
 
-Notification media (delivery channels): Lark webhook, email, HTTP webhook, script.
+支持管道处理和按规则配置通知目标的高级通知规则。
 
-**Model fields:** `name`, `type` (lark_webhook | email | http | script), `description`, `is_enabled`, `config` (JSON), `variables` (JSON), `is_builtin`.
+**模型字段：** `name`、`description`、`is_enabled`、`severities`、`match_labels`（map）、`pipeline`（JSON）、`notify_configs`（JSON）、`repeat_interval`、`callback_url`、`created_by`。
 
-| Method | Route | Access | Description |
-|--------|-------|--------|-------------|
-| GET | `/notify-media` | Any | List (paginated) |
-| GET | `/notify-media/:id` | Any | Get by ID |
-| POST | `/notify-media` | Manage | Create |
-| PUT | `/notify-media/:id` | Manage | Update |
-| DELETE | `/notify-media/:id` | Manage | Delete |
-| POST | `/notify-media/:id/test` | Manage | Send test notification |
+| 方法 | 路由 | 访问级别 | 说明 |
+|------|------|----------|------|
+| GET | `/notify-rules` | 已认证 | 列表（分页） |
+| GET | `/notify-rules/:id` | 已认证 | 按 ID 获取 |
+| POST | `/notify-rules` | 管理权限 | 创建 |
+| PUT | `/notify-rules/:id` | 管理权限 | 更新 |
+| DELETE | `/notify-rules/:id` | 管理权限 | 删除 |
 
-**Create / Update Body:**
+**创建 / 更新请求体：**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | yes | |
-| `type` | string | yes | One of: lark_webhook, email, http, script |
-| `description` | string | no | |
-| `is_enabled` | bool | no | |
-| `config` | string (JSON) | yes | Type-specific config |
-| `variables` | string (JSON) | no | Template variables |
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `name` | string | 是 | 名称 |
+| `description` | string | 否 | 描述 |
+| `is_enabled` | bool | 否 | 是否启用 |
+| `severities` | string | 否 | 逗号分隔 |
+| `match_labels` | map[string]string | 否 | 标签匹配器 |
+| `pipeline` | string (JSON) | 否 | 处理管道步骤 |
+| `notify_configs` | string (JSON) | 否 | 通知配置数组 |
+| `repeat_interval` | int | 否 | 重复通知间隔（秒） |
+| `callback_url` | string | 否 | Webhook 回调 URL |
 
-**Test Response:**
+---
+
+## 8. 通知媒介
+
+通知媒介（投递渠道）：飞书 Webhook、邮件、HTTP Webhook、脚本。
+
+**模型字段：** `name`、`type`（lark_webhook | email | http | script）、`description`、`is_enabled`、`config`（JSON）、`variables`（JSON）、`is_builtin`。
+
+| 方法 | 路由 | 访问级别 | 说明 |
+|------|------|----------|------|
+| GET | `/notify-media` | 已认证 | 列表（分页） |
+| GET | `/notify-media/:id` | 已认证 | 按 ID 获取 |
+| POST | `/notify-media` | 管理权限 | 创建 |
+| PUT | `/notify-media/:id` | 管理权限 | 更新 |
+| DELETE | `/notify-media/:id` | 管理权限 | 删除 |
+| POST | `/notify-media/:id/test` | 管理权限 | 发送测试通知 |
+
+**创建 / 更新请求体：**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `name` | string | 是 | 名称 |
+| `type` | string | 是 | 类型：lark_webhook、email、http、script |
+| `description` | string | 否 | 描述 |
+| `is_enabled` | bool | 否 | 是否启用 |
+| `config` | string (JSON) | 是 | 类型专属配置 |
+| `variables` | string (JSON) | 否 | 模板变量 |
+
+**测试响应：**
 
 ```json
 { "code": 0, "data": { "message": "test notification sent" } }
@@ -504,37 +504,37 @@ Notification media (delivery channels): Lark webhook, email, HTTP webhook, scrip
 
 ---
 
-## 9. Message Templates
+## 9. 消息模板
 
-Go `text/template` based message templates for notifications.
+基于 Go `text/template` 的通知消息模板。
 
-**Model fields:** `name`, `description`, `content` (Go template string), `type` (text | html | markdown | lark_card), `is_builtin`.
+**模型字段：** `name`、`description`、`content`（Go 模板字符串）、`type`（text | html | markdown | lark_card）、`is_builtin`。
 
-| Method | Route | Access | Description |
-|--------|-------|--------|-------------|
-| GET | `/message-templates` | Any | List (paginated) |
-| GET | `/message-templates/:id` | Any | Get by ID |
-| POST | `/message-templates` | Manage | Create |
-| PUT | `/message-templates/:id` | Manage | Update |
-| DELETE | `/message-templates/:id` | Manage | Delete |
-| POST | `/message-templates/preview` | Any | Preview rendered template |
+| 方法 | 路由 | 访问级别 | 说明 |
+|------|------|----------|------|
+| GET | `/message-templates` | 已认证 | 列表（分页） |
+| GET | `/message-templates/:id` | 已认证 | 按 ID 获取 |
+| POST | `/message-templates` | 管理权限 | 创建 |
+| PUT | `/message-templates/:id` | 管理权限 | 更新 |
+| DELETE | `/message-templates/:id` | 管理权限 | 删除 |
+| POST | `/message-templates/preview` | 已认证 | 预览模板渲染结果 |
 
-**Create / Update Body:**
+**创建 / 更新请求体：**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | yes | |
-| `description` | string | no | |
-| `content` | string | yes | Go template string |
-| `type` | string | no | Default: `"text"` |
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `name` | string | 是 | 名称 |
+| `description` | string | 否 | 描述 |
+| `content` | string | 是 | Go 模板字符串 |
+| `type` | string | 否 | 默认：`"text"` |
 
-**Preview Body:**
+**预览请求体：**
 
 ```json
 { "content": "Alert {{ .AlertName }} is {{ .Status }}" }
 ```
 
-**Preview Response:**
+**预览响应：**
 
 ```json
 { "code": 0, "data": { "rendered": "Alert CPUHigh is firing" } }
@@ -542,114 +542,114 @@ Go `text/template` based message templates for notifications.
 
 ---
 
-## 10. Subscribe Rules
+## 10. 订阅规则
 
-Allow users/teams to subscribe to alerts matching certain criteria and route them to a notify rule.
+允许用户/团队订阅匹配特定条件的告警，并将其路由到指定的通知规则。
 
-**Model fields:** `name`, `description`, `is_enabled`, `match_labels` (map), `severities`, `notify_rule_id`, `user_id`, `team_id`, `created_by`.
+**模型字段：** `name`、`description`、`is_enabled`、`match_labels`（map）、`severities`、`notify_rule_id`、`user_id`、`team_id`、`created_by`。
 
-| Method | Route | Access | Description |
-|--------|-------|--------|-------------|
-| GET | `/subscribe-rules` | Any | List (paginated) |
-| GET | `/subscribe-rules/:id` | Any | Get by ID |
-| POST | `/subscribe-rules` | Operate | Create |
-| PUT | `/subscribe-rules/:id` | Operate | Update |
-| DELETE | `/subscribe-rules/:id` | Operate | Delete |
+| 方法 | 路由 | 访问级别 | 说明 |
+|------|------|----------|------|
+| GET | `/subscribe-rules` | 已认证 | 列表（分页） |
+| GET | `/subscribe-rules/:id` | 已认证 | 按 ID 获取 |
+| POST | `/subscribe-rules` | 操作权限 | 创建 |
+| PUT | `/subscribe-rules/:id` | 操作权限 | 更新 |
+| DELETE | `/subscribe-rules/:id` | 操作权限 | 删除 |
 
-**Create / Update Body:**
+**创建 / 更新请求体：**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | yes | |
-| `description` | string | no | |
-| `is_enabled` | bool | no | |
-| `match_labels` | map[string]string | no | Label matchers |
-| `severities` | string | no | Comma-separated |
-| `notify_rule_id` | uint | yes | Target notify rule |
-| `user_id` | uint | no | Subscribe for a specific user |
-| `team_id` | uint | no | Subscribe for a team |
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `name` | string | 是 | 名称 |
+| `description` | string | 否 | 描述 |
+| `is_enabled` | bool | 否 | 是否启用 |
+| `match_labels` | map[string]string | 否 | 标签匹配器 |
+| `severities` | string | 否 | 逗号分隔 |
+| `notify_rule_id` | uint | 是 | 目标通知规则 |
+| `user_id` | uint | 否 | 为指定用户订阅 |
+| `team_id` | uint | 否 | 为团队订阅 |
 
 ---
 
-## 11. Business Groups
+## 11. 业务分组
 
-Hierarchical business group tree for organizing alert rules and access control.
+用于组织告警规则和访问控制的层级业务分组树。
 
-**Model fields:** `name` (supports `/` for hierarchy), `description`, `parent_id`, `labels` (map), `members`.
+**模型字段：** `name`（支持 `/` 表示层级）、`description`、`parent_id`、`labels`（map）、`members`。
 
-| Method | Route | Access | Description |
-|--------|-------|--------|-------------|
-| GET | `/biz-groups` | Any | List (paginated) |
-| GET | `/biz-groups/tree` | Any | Get tree structure |
-| GET | `/biz-groups/:id` | Any | Get by ID |
-| GET | `/biz-groups/:id/members` | Any | List group members |
-| POST | `/biz-groups` | Manage | Create |
-| PUT | `/biz-groups/:id` | Manage | Update |
-| DELETE | `/biz-groups/:id` | Manage | Delete |
-| POST | `/biz-groups/:id/members` | Manage | Add member |
-| DELETE | `/biz-groups/:id/members/:uid` | Manage | Remove member |
+| 方法 | 路由 | 访问级别 | 说明 |
+|------|------|----------|------|
+| GET | `/biz-groups` | 已认证 | 列表（分页） |
+| GET | `/biz-groups/tree` | 已认证 | 获取树形结构 |
+| GET | `/biz-groups/:id` | 已认证 | 按 ID 获取 |
+| GET | `/biz-groups/:id/members` | 已认证 | 列出分组成员 |
+| POST | `/biz-groups` | 管理权限 | 创建 |
+| PUT | `/biz-groups/:id` | 管理权限 | 更新 |
+| DELETE | `/biz-groups/:id` | 管理权限 | 删除 |
+| POST | `/biz-groups/:id/members` | 管理权限 | 添加成员 |
+| DELETE | `/biz-groups/:id/members/:uid` | 管理权限 | 移除成员 |
 
-**Create / Update Body:**
+**创建 / 更新请求体：**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | yes | |
-| `description` | string | no | |
-| `parent_id` | uint | no | Parent group ID |
-| `labels` | map[string]string | no | |
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `name` | string | 是 | 名称 |
+| `description` | string | 否 | 描述 |
+| `parent_id` | uint | 否 | 父分组 ID |
+| `labels` | map[string]string | 否 | 标签 |
 
-**Add Member Body:**
+**添加成员请求体：**
 
 ```json
 { "user_id": 5, "role": "admin" }
 ```
 
-Role can be `"admin"` or `"member"`.
+角色可选 `"admin"` 或 `"member"`。
 
 ---
 
-## 12. Alert Channels
+## 12. 告警通道
 
-Virtual alert routing channels that bind a notify media to optional template and label matchers.
+虚拟告警路由通道，将通知媒介与可选的模板和标签匹配器绑定。
 
-**Model fields:** `name`, `description`, `match_labels` (map), `severities`, `media_id`, `template_id`, `throttle_min`, `is_enabled`, `created_by`.
+**模型字段：** `name`、`description`、`match_labels`（map）、`severities`、`media_id`、`template_id`、`throttle_min`、`is_enabled`、`created_by`。
 
-| Method | Route | Access | Description |
-|--------|-------|--------|-------------|
-| GET | `/alert-channels` | Any | List (paginated) |
-| GET | `/alert-channels/:id` | Any | Get by ID |
-| POST | `/alert-channels` | Manage | Create |
-| PUT | `/alert-channels/:id` | Manage | Update |
-| DELETE | `/alert-channels/:id` | Manage | Delete |
+| 方法 | 路由 | 访问级别 | 说明 |
+|------|------|----------|------|
+| GET | `/alert-channels` | 已认证 | 列表（分页） |
+| GET | `/alert-channels/:id` | 已认证 | 按 ID 获取 |
+| POST | `/alert-channels` | 管理权限 | 创建 |
+| PUT | `/alert-channels/:id` | 管理权限 | 更新 |
+| DELETE | `/alert-channels/:id` | 管理权限 | 删除 |
 
-**Create / Update Body:**
+**创建 / 更新请求体：**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | yes | |
-| `description` | string | no | |
-| `match_labels` | map[string]string | no | |
-| `severities` | string | no | Comma-separated |
-| `media_id` | uint | yes | FK to notify media |
-| `template_id` | uint | no | FK to message template |
-| `throttle_min` | int | no | Minimum minutes between notifications |
-| `is_enabled` | bool | no | |
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `name` | string | 是 | 名称 |
+| `description` | string | 否 | 描述 |
+| `match_labels` | map[string]string | 否 | 标签匹配器 |
+| `severities` | string | 否 | 逗号分隔 |
+| `media_id` | uint | 是 | 关联通知媒介 ID |
+| `template_id` | uint | 否 | 关联消息模板 ID |
+| `throttle_min` | int | 否 | 通知最小间隔（分钟） |
+| `is_enabled` | bool | 否 | 是否启用 |
 
 ---
 
-## 13. User Notify Configs
+## 13. 用户通知配置
 
-Personal notification preferences for the current user (multi-media).
+当前用户的个人通知偏好设置（多媒介）。
 
-**Model fields:** `user_id`, `media_type` (lark_personal | email | webhook), `config` (JSON), `is_enabled`.
+**模型字段：** `user_id`、`media_type`（lark_personal | email | webhook）、`config`（JSON）、`is_enabled`。
 
-| Method | Route | Access | Description |
-|--------|-------|--------|-------------|
-| GET | `/me/notify-configs` | Any | List current user's configs |
-| PUT | `/me/notify-configs` | Any | Create or update (upsert by media_type) |
-| DELETE | `/me/notify-configs/:mediaType` | Any | Delete by media type |
+| 方法 | 路由 | 访问级别 | 说明 |
+|------|------|----------|------|
+| GET | `/me/notify-configs` | 已认证 | 列出当前用户的配置 |
+| PUT | `/me/notify-configs` | 已认证 | 创建或更新（按 media_type upsert） |
+| DELETE | `/me/notify-configs/:mediaType` | 已认证 | 按媒介类型删除 |
 
-**Upsert Body:**
+**Upsert 请求体：**
 
 ```json
 {
@@ -659,210 +659,210 @@ Personal notification preferences for the current user (multi-media).
 }
 ```
 
-**Delete Path Param:** `:mediaType` — e.g., `email`, `lark_personal`, `webhook`.
+**删除路径参数：** `:mediaType` — 例如 `email`、`lark_personal`、`webhook`。
 
 ---
 
-## 14. Notify Channels (v1)
+## 14. 通知渠道（v1）
 
-Legacy notification channels. Types: `lark_webhook`, `lark_bot`, `email`, `sms`, `custom_webhook`.
+旧版通知渠道。类型：`lark_webhook`、`lark_bot`、`email`、`sms`、`custom_webhook`。
 
-**Model fields:** `name`, `type`, `description`, `labels` (map), `config` (JSON, hidden on GET), `is_enabled`.
+**模型字段：** `name`、`type`、`description`、`labels`（map）、`config`（JSON，GET 时隐藏）、`is_enabled`。
 
-| Method | Route | Access | Description |
-|--------|-------|--------|-------------|
-| GET | `/notify-channels` | Any | List (paginated) |
-| GET | `/notify-channels/:id` | Any | Get by ID |
-| POST | `/notify-channels` | Manage | Create |
-| PUT | `/notify-channels/:id` | Manage | Update |
-| DELETE | `/notify-channels/:id` | Manage | Delete |
-| POST | `/notify-channels/:id/test` | Manage | Send test notification |
+| 方法 | 路由 | 访问级别 | 说明 |
+|------|------|----------|------|
+| GET | `/notify-channels` | 已认证 | 列表（分页） |
+| GET | `/notify-channels/:id` | 已认证 | 按 ID 获取 |
+| POST | `/notify-channels` | 管理权限 | 创建 |
+| PUT | `/notify-channels/:id` | 管理权限 | 更新 |
+| DELETE | `/notify-channels/:id` | 管理权限 | 删除 |
+| POST | `/notify-channels/:id/test` | 管理权限 | 发送测试通知 |
 
-**Create / Update Body:**
+**创建 / 更新请求体：**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | yes | |
-| `type` | string | yes | Channel type |
-| `description` | string | no | |
-| `labels` | map[string]string | no | |
-| `config` | string (JSON) | yes | Type-specific config |
-| `is_enabled` | bool | no | |
-
----
-
-## 15. Notify Policies (v1)
-
-Legacy notification policies that route alerts to channels based on label matching.
-
-**Model fields:** `name`, `description`, `match_labels` (map), `severities`, `channel_id`, `throttle_minutes`, `template_name`, `is_enabled`, `priority`.
-
-| Method | Route | Access | Description |
-|--------|-------|--------|-------------|
-| GET | `/notify-policies` | Any | List (paginated) |
-| GET | `/notify-policies/:id` | Any | Get by ID |
-| POST | `/notify-policies` | Manage | Create |
-| PUT | `/notify-policies/:id` | Manage | Update |
-| DELETE | `/notify-policies/:id` | Manage | Delete |
-
-**Create / Update Body:**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | yes | |
-| `description` | string | no | |
-| `match_labels` | map[string]string | yes | Label matchers |
-| `severities` | string | no | Comma-separated |
-| `channel_id` | uint | yes | FK to notify channel |
-| `throttle_minutes` | int | no | Throttle window |
-| `template_name` | string | no | Default: `"default"` |
-| `is_enabled` | bool | no | |
-| `priority` | int | no | Lower = higher priority |
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `name` | string | 是 | 名称 |
+| `type` | string | 是 | 渠道类型 |
+| `description` | string | 否 | 描述 |
+| `labels` | map[string]string | 否 | 标签 |
+| `config` | string (JSON) | 是 | 类型专属配置 |
+| `is_enabled` | bool | 否 | 是否启用 |
 
 ---
 
-## 16. Users
+## 15. 通知策略（v1）
 
-User management. Supports human users, bot users, and channel (virtual) users.
+旧版通知策略，根据标签匹配将告警路由到通知渠道。
 
-**Model fields:** `username`, `display_name`, `email`, `phone`, `lark_user_id`, `avatar`, `role` (admin | team_lead | member | viewer | global_viewer), `is_active`, `user_type` (human | bot | channel), `notify_target` (JSON), `oidc_subject`.
+**模型字段：** `name`、`description`、`match_labels`（map）、`severities`、`channel_id`、`throttle_minutes`、`template_name`、`is_enabled`、`priority`。
 
-| Method | Route | Access | Description |
-|--------|-------|--------|-------------|
-| GET | `/users` | Any | List (paginated). Filter: `?user_type=human` |
-| GET | `/users/:id` | Any | Get by ID |
-| POST | `/users` | Admin | Create human user |
-| POST | `/users/virtual` | Admin | Create virtual (bot/channel) user |
-| PUT | `/users/:id` | Admin | Update user |
-| PATCH | `/users/:id/active` | Admin | Enable / disable user |
-| PATCH | `/users/:id/password` | Admin | Admin reset password |
-| DELETE | `/users/:id` | Admin | Delete user |
+| 方法 | 路由 | 访问级别 | 说明 |
+|------|------|----------|------|
+| GET | `/notify-policies` | 已认证 | 列表（分页） |
+| GET | `/notify-policies/:id` | 已认证 | 按 ID 获取 |
+| POST | `/notify-policies` | 管理权限 | 创建 |
+| PUT | `/notify-policies/:id` | 管理权限 | 更新 |
+| DELETE | `/notify-policies/:id` | 管理权限 | 删除 |
 
-**Create Human User Body:**
+**创建 / 更新请求体：**
 
-| Field | Type | Required | Validation |
-|-------|------|----------|------------|
-| `username` | string | yes | Unique |
-| `password` | string | yes | min 6 chars |
-| `display_name` | string | no | |
-| `email` | string | no | email format |
-| `phone` | string | no | |
-| `lark_user_id` | string | no | |
-| `avatar` | string | no | |
-| `role` | string | no | Default: `"member"` |
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `name` | string | 是 | 名称 |
+| `description` | string | 否 | 描述 |
+| `match_labels` | map[string]string | 是 | 标签匹配器 |
+| `severities` | string | 否 | 逗号分隔 |
+| `channel_id` | uint | 是 | 关联通知渠道 ID |
+| `throttle_minutes` | int | 否 | 节流窗口（分钟） |
+| `template_name` | string | 否 | 默认：`"default"` |
+| `is_enabled` | bool | 否 | 是否启用 |
+| `priority` | int | 否 | 值越小优先级越高 |
 
-**Create Virtual User Body:**
+---
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `username` | string | yes | |
-| `display_name` | string | no | |
-| `user_type` | string | yes | `"bot"` or `"channel"` |
-| `notify_target` | string | no | JSON notification target config |
-| `description` | string | no | |
-| `role` | string | no | |
+## 16. 用户
 
-**Update Body:**
+用户管理。支持普通用户、机器人用户和渠道（虚拟）用户。
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `display_name` | string | |
-| `email` | string | |
-| `phone` | string | |
-| `lark_user_id` | string | |
-| `avatar` | string | |
-| `role` | string | |
+**模型字段：** `username`、`display_name`、`email`、`phone`、`lark_user_id`、`avatar`、`role`（admin | team_lead | member | viewer | global_viewer）、`is_active`、`user_type`（human | bot | channel）、`notify_target`（JSON）、`oidc_subject`。
 
-**Toggle Active Body:**
+| 方法 | 路由 | 访问级别 | 说明 |
+|------|------|----------|------|
+| GET | `/users` | 已认证 | 列表（分页）。筛选：`?user_type=human` |
+| GET | `/users/:id` | 已认证 | 按 ID 获取 |
+| POST | `/users` | 仅管理员 | 创建普通用户 |
+| POST | `/users/virtual` | 仅管理员 | 创建虚拟用户（机器人/渠道） |
+| PUT | `/users/:id` | 仅管理员 | 更新用户 |
+| PATCH | `/users/:id/active` | 仅管理员 | 启用 / 禁用用户 |
+| PATCH | `/users/:id/password` | 仅管理员 | 管理员重置密码 |
+| DELETE | `/users/:id` | 仅管理员 | 删除用户 |
+
+**创建普通用户请求体：**
+
+| 字段 | 类型 | 必填 | 校验规则 |
+|------|------|------|----------|
+| `username` | string | 是 | 唯一 |
+| `password` | string | 是 | 至少 6 个字符 |
+| `display_name` | string | 否 | |
+| `email` | string | 否 | 邮箱格式 |
+| `phone` | string | 否 | |
+| `lark_user_id` | string | 否 | |
+| `avatar` | string | 否 | |
+| `role` | string | 否 | 默认：`"member"` |
+
+**创建虚拟用户请求体：**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `username` | string | 是 | 用户名 |
+| `display_name` | string | 否 | 显示名称 |
+| `user_type` | string | 是 | `"bot"` 或 `"channel"` |
+| `notify_target` | string | 否 | JSON 通知目标配置 |
+| `description` | string | 否 | 描述 |
+| `role` | string | 否 | 角色 |
+
+**更新请求体：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `display_name` | string | 显示名称 |
+| `email` | string | 邮箱 |
+| `phone` | string | 手机号 |
+| `lark_user_id` | string | 飞书用户 ID |
+| `avatar` | string | 头像 |
+| `role` | string | 角色 |
+
+**切换启用状态请求体：**
 
 ```json
 { "is_active": true }
 ```
 
-**Change Password Body:**
+**修改密码请求体：**
 
-| Field | Type | Required | Validation |
-|-------|------|----------|------------|
-| `old_password` | string | yes | |
-| `new_password` | string | yes | min 6 chars |
+| 字段 | 类型 | 必填 | 校验规则 |
+|------|------|------|----------|
+| `old_password` | string | 是 | |
+| `new_password` | string | 是 | 至少 6 个字符 |
 
 ---
 
-## 17. Teams
+## 17. 团队
 
-Team management with member roles.
+团队管理，支持成员角色设置。
 
-**Model fields:** `name`, `description`, `labels` (map). Members via join table with `role` (lead | member).
+**模型字段：** `name`、`description`、`labels`（map）。成员通过关联表管理，角色为 `role`（lead | member）。
 
-| Method | Route | Access | Description |
-|--------|-------|--------|-------------|
-| GET | `/teams` | Any | List (paginated) |
-| GET | `/teams/:id` | Any | Get by ID |
-| GET | `/teams/:id/members` | Any | List team members |
-| POST | `/teams` | Manage | Create |
-| PUT | `/teams/:id` | Manage | Update |
-| DELETE | `/teams/:id` | Manage | Delete |
-| POST | `/teams/:id/members` | Manage | Add member |
-| DELETE | `/teams/:id/members/:uid` | Manage | Remove member |
+| 方法 | 路由 | 访问级别 | 说明 |
+|------|------|----------|------|
+| GET | `/teams` | 已认证 | 列表（分页） |
+| GET | `/teams/:id` | 已认证 | 按 ID 获取 |
+| GET | `/teams/:id/members` | 已认证 | 列出团队成员 |
+| POST | `/teams` | 管理权限 | 创建 |
+| PUT | `/teams/:id` | 管理权限 | 更新 |
+| DELETE | `/teams/:id` | 管理权限 | 删除 |
+| POST | `/teams/:id/members` | 管理权限 | 添加成员 |
+| DELETE | `/teams/:id/members/:uid` | 管理权限 | 移除成员 |
 
-**Create / Update Body:**
+**创建 / 更新请求体：**
 
-| Field | Type | Required |
-|-------|------|----------|
-| `name` | string | yes |
-| `description` | string | no |
-| `labels` | map[string]string | no |
+| 字段 | 类型 | 必填 |
+|------|------|------|
+| `name` | string | 是 |
+| `description` | string | 否 |
+| `labels` | map[string]string | 否 |
 
-**Add Member Body:**
+**添加成员请求体：**
 
 ```json
 { "user_id": 5, "role": "lead" }
 ```
 
-Role: `"lead"` or `"member"`.
+角色可选 `"lead"` 或 `"member"`。
 
 ---
 
-## 18. Schedules (On-Call)
+## 18. 值班管理
 
-On-call schedule management with rotation, shifts, overrides, and participants.
+值班排班管理，支持轮转、班次、替班和参与人。
 
-### Schedule CRUD
+### 排班 CRUD
 
-**Model fields:** `name`, `team_id`, `description`, `rotation_type` (daily | weekly | custom), `timezone`, `handoff_time`, `handoff_day`, `is_enabled`, `severity_filter`.
+**模型字段：** `name`、`team_id`、`description`、`rotation_type`（daily | weekly | custom）、`timezone`、`handoff_time`、`handoff_day`、`is_enabled`、`severity_filter`。
 
-| Method | Route | Access | Description |
-|--------|-------|--------|-------------|
-| GET | `/schedules` | Any | List (paginated). Filter: `?team_id=1` |
-| GET | `/schedules/:id` | Any | Get by ID |
-| GET | `/schedules/:id/oncall` | Any | Get current on-call user |
-| POST | `/schedules` | Manage | Create |
-| PUT | `/schedules/:id` | Manage | Update |
-| DELETE | `/schedules/:id` | Manage | Delete |
-| PUT | `/schedules/:id/participants` | Manage | Set rotation participants |
-| POST | `/schedules/:id/overrides` | Manage | Create override |
-| DELETE | `/schedules/:id/overrides/:oid` | Manage | Delete override |
+| 方法 | 路由 | 访问级别 | 说明 |
+|------|------|----------|------|
+| GET | `/schedules` | 已认证 | 列表（分页）。筛选：`?team_id=1` |
+| GET | `/schedules/:id` | 已认证 | 按 ID 获取 |
+| GET | `/schedules/:id/oncall` | 已认证 | 获取当前值班用户 |
+| POST | `/schedules` | 管理权限 | 创建 |
+| PUT | `/schedules/:id` | 管理权限 | 更新 |
+| DELETE | `/schedules/:id` | 管理权限 | 删除 |
+| PUT | `/schedules/:id/participants` | 管理权限 | 设置轮转参与人 |
+| POST | `/schedules/:id/overrides` | 管理权限 | 创建替班 |
+| DELETE | `/schedules/:id/overrides/:oid` | 管理权限 | 删除替班 |
 
-**Create / Update Body:**
+**创建 / 更新请求体：**
 
-| Field | Type | Required | Default |
-|-------|------|----------|---------|
-| `name` | string | yes | |
-| `team_id` | uint | no | |
-| `description` | string | no | |
-| `rotation_type` | string | yes | |
-| `timezone` | string | no | `"Asia/Shanghai"` |
-| `handoff_time` | string | no | `"09:00"` |
-| `handoff_day` | int | no | |
-| `is_enabled` | bool | no | true |
+| 字段 | 类型 | 必填 | 默认值 |
+|------|------|------|--------|
+| `name` | string | 是 | |
+| `team_id` | uint | 否 | |
+| `description` | string | 否 | |
+| `rotation_type` | string | 是 | |
+| `timezone` | string | 否 | `"Asia/Shanghai"` |
+| `handoff_time` | string | 否 | `"09:00"` |
+| `handoff_day` | int | 否 | |
+| `is_enabled` | bool | 否 | true |
 
-**Set Participants Body:**
+**设置参与人请求体：**
 
 ```json
 { "user_ids": [1, 2, 3] }
 ```
 
-**Create Override Body:**
+**创建替班请求体：**
 
 ```json
 {
@@ -873,37 +873,37 @@ On-call schedule management with rotation, shifts, overrides, and participants.
 }
 ```
 
-### On-Call Shifts
+### 值班班次
 
-**Model fields:** `schedule_id`, `user_id`, `start_time`, `end_time`, `severity_filter`, `source` (manual | rotation), `note`.
+**模型字段：** `schedule_id`、`user_id`、`start_time`、`end_time`、`severity_filter`、`source`（manual | rotation）、`note`。
 
-| Method | Route | Access | Description |
-|--------|-------|--------|-------------|
-| GET | `/schedules/:id/shifts` | Any | List shifts. Filters: `?start=<RFC3339>&end=<RFC3339>` |
-| POST | `/schedules/:id/shifts` | Manage | Create shift |
-| PUT | `/schedules/:id/shifts/:shiftId` | Manage | Update shift |
-| DELETE | `/schedules/:id/shifts/:shiftId` | Manage | Delete shift |
-| POST | `/schedules/:id/generate-shifts` | Manage | Auto-generate shifts from rotation |
+| 方法 | 路由 | 访问级别 | 说明 |
+|------|------|----------|------|
+| GET | `/schedules/:id/shifts` | 已认证 | 列出班次。筛选：`?start=<RFC3339>&end=<RFC3339>` |
+| POST | `/schedules/:id/shifts` | 管理权限 | 创建班次 |
+| PUT | `/schedules/:id/shifts/:shiftId` | 管理权限 | 更新班次 |
+| DELETE | `/schedules/:id/shifts/:shiftId` | 管理权限 | 删除班次 |
+| POST | `/schedules/:id/generate-shifts` | 管理权限 | 根据轮转自动生成班次 |
 
-**Create / Update Shift Body:**
+**创建 / 更新班次请求体：**
 
-| Field | Type | Required |
-|-------|------|----------|
-| `user_id` | uint | yes |
-| `start_time` | datetime (RFC 3339) | yes |
-| `end_time` | datetime (RFC 3339) | yes |
-| `severity_filter` | string | no |
-| `note` | string | no |
+| 字段 | 类型 | 必填 |
+|------|------|------|
+| `user_id` | uint | 是 |
+| `start_time` | datetime (RFC 3339) | 是 |
+| `end_time` | datetime (RFC 3339) | 是 |
+| `severity_filter` | string | 否 |
+| `note` | string | 否 |
 
-**Generate Shifts Body:**
+**自动生成班次请求体：**
 
 ```json
 { "weeks": 4 }
 ```
 
-Validation: 1–52 weeks.
+校验范围：1–52 周。
 
-**Generate Response:**
+**生成响应：**
 
 ```json
 { "code": 0, "data": { "message": "shifts generated", "weeks": 4 } }
@@ -911,29 +911,29 @@ Validation: 1–52 weeks.
 
 ---
 
-## 19. Escalation Policies
+## 19. 升级策略
 
-Multi-step escalation policies that define notification targets and delay intervals.
+多步骤升级策略，定义通知目标和延迟间隔。
 
-### Policy CRUD
+### 策略 CRUD
 
-**Model fields:** `name`, `team_id`, `is_enabled`.
+**模型字段：** `name`、`team_id`、`is_enabled`。
 
-| Method | Route | Access | Description |
-|--------|-------|--------|-------------|
-| GET | `/escalation-policies` | Any | List. Filter: `?team_id=1` |
-| GET | `/escalation-policies/:id` | Any | Get policy with steps |
-| POST | `/escalation-policies` | Manage | Create |
-| PUT | `/escalation-policies/:id` | Manage | Update |
-| DELETE | `/escalation-policies/:id` | Manage | Delete |
+| 方法 | 路由 | 访问级别 | 说明 |
+|------|------|----------|------|
+| GET | `/escalation-policies` | 已认证 | 列表。筛选：`?team_id=1` |
+| GET | `/escalation-policies/:id` | 已认证 | 获取策略及其步骤 |
+| POST | `/escalation-policies` | 管理权限 | 创建 |
+| PUT | `/escalation-policies/:id` | 管理权限 | 更新 |
+| DELETE | `/escalation-policies/:id` | 管理权限 | 删除 |
 
-**Create / Update Body:**
+**创建 / 更新请求体：**
 
 ```json
 { "name": "Critical P1", "team_id": 1, "is_enabled": true }
 ```
 
-**Get Response:**
+**获取响应：**
 
 ```json
 {
@@ -945,59 +945,59 @@ Multi-step escalation policies that define notification targets and delay interv
 }
 ```
 
-### Escalation Steps
+### 升级步骤
 
-**Model fields:** `policy_id`, `step_order`, `delay_minutes`, `target_type` (user | schedule | team), `target_id`, `notify_channel_id`.
+**模型字段：** `policy_id`、`step_order`、`delay_minutes`、`target_type`（user | schedule | team）、`target_id`、`notify_channel_id`。
 
-| Method | Route | Access | Description |
-|--------|-------|--------|-------------|
-| POST | `/escalation-policies/:id/steps` | Manage | Create step |
-| PUT | `/escalation-policies/:id/steps/:stepId` | Manage | Update step |
-| DELETE | `/escalation-policies/:id/steps/:stepId` | Manage | Delete step |
+| 方法 | 路由 | 访问级别 | 说明 |
+|------|------|----------|------|
+| POST | `/escalation-policies/:id/steps` | 管理权限 | 创建步骤 |
+| PUT | `/escalation-policies/:id/steps/:stepId` | 管理权限 | 更新步骤 |
+| DELETE | `/escalation-policies/:id/steps/:stepId` | 管理权限 | 删除步骤 |
 
-**Create / Update Step Body:**
+**创建 / 更新步骤请求体：**
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `step_order` | int | yes | Execution order (1-based) |
-| `delay_minutes` | int | yes | Delay before this step fires |
-| `target_type` | string | yes | user, schedule, or team |
-| `target_id` | uint | yes | FK to target entity |
-| `notify_channel_id` | uint | no | Override default channel |
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `step_order` | int | 是 | 执行顺序（从 1 开始） |
+| `delay_minutes` | int | 是 | 触发前的延迟时间（分钟） |
+| `target_type` | string | 是 | user、schedule 或 team |
+| `target_id` | uint | 是 | 关联目标实体 ID |
+| `notify_channel_id` | uint | 否 | 覆盖默认通知渠道 |
 
 ---
 
 ## 20. AI
 
-AI-powered alert analysis. Supports LLM-generated alert reports and SOP suggestions.
+AI 驱动的告警分析。支持 LLM 生成的告警报告和 SOP 建议。
 
-| Method | Route | Access | Description |
-|--------|-------|--------|-------------|
-| POST | `/ai/alert-report` | Any | Generate AI alert analysis report |
-| POST | `/ai/suggest-sop` | Any | AI-suggested SOP for an alert |
-| POST | `/ai/test` | Manage | Test AI provider connectivity |
-| GET | `/ai/config` | Admin | Get AI configuration (API key masked) |
-| PUT | `/ai/config` | Admin | Update AI configuration |
+| 方法 | 路由 | 访问级别 | 说明 |
+|------|------|----------|------|
+| POST | `/ai/alert-report` | 已认证 | 生成 AI 告警分析报告 |
+| POST | `/ai/suggest-sop` | 已认证 | AI 推荐的告警 SOP |
+| POST | `/ai/test` | 管理权限 | 测试 AI 提供商连通性 |
+| GET | `/ai/config` | 仅管理员 | 获取 AI 配置（API key 已脱敏） |
+| PUT | `/ai/config` | 仅管理员 | 更新 AI 配置 |
 
-**Generate Report / Suggest SOP Body:**
+**生成报告 / 推荐 SOP 请求体：**
 
 ```json
 { "event_id": 42 }
 ```
 
-**Report Response:**
+**报告响应：**
 
 ```json
 { "code": 0, "data": { "report": "## Analysis\n...", "event_id": 42 } }
 ```
 
-**SOP Response:**
+**SOP 响应：**
 
 ```json
 { "code": 0, "data": { "sop": "1. Check CPU usage\n2. ...", "event_id": 42 } }
 ```
 
-**Test Response:**
+**测试响应：**
 
 ```json
 { "code": 0, "data": { "message": "AI connection successful" } }
@@ -1005,47 +1005,47 @@ AI-powered alert analysis. Supports LLM-generated alert reports and SOP suggesti
 
 ---
 
-## 21. Lark Bot
+## 21. 飞书机器人
 
-Lark (Feishu) bot integration for interactive alert notifications.
+飞书（Lark）机器人集成，用于交互式告警通知。
 
-### POST `/lark/event` — Lark Event Callback
+### POST `/lark/event` — 飞书事件回调
 
-**Access:** Public (verified by Lark verification token)
+**访问级别：** 公开（通过飞书验证令牌校验）
 
-Receives Lark event subscription callbacks including URL verification challenges and message events. Returns raw JSON for Lark protocol compatibility.
+接收飞书事件订阅回调，包括 URL 验证挑战和消息事件。返回原始 JSON 以兼容飞书协议。
 
-### GET `/api/v1/lark/bot/config` — Get Lark Config
+### GET `/api/v1/lark/bot/config` — 获取飞书配置
 
-**Access:** Admin
+**访问级别：** 仅管理员
 
-Returns Lark bot configuration (app ID, webhook URL, etc.).
+返回飞书机器人配置（App ID、Webhook URL 等）。
 
-### PUT `/api/v1/lark/bot/config` — Update Lark Config
+### PUT `/api/v1/lark/bot/config` — 更新飞书配置
 
-**Access:** Admin
+**访问级别：** 仅管理员
 
-Updates Lark bot configuration. Sensitive fields (app_secret, verification_token, encrypt_key) are stored with AES-GCM encryption.
-
----
-
-## 22. Engine
-
-### GET `/api/v1/engine/status` — Engine Status
-
-**Access:** Any
-
-Returns the alert evaluation engine status including active rule count, evaluation metrics, and state store connectivity.
+更新飞书机器人配置。敏感字段（app_secret、verification_token、encrypt_key）使用 AES-GCM 加密存储。
 
 ---
 
-## 23. Dashboard
+## 22. 引擎
 
-### GET `/api/v1/dashboard/stats` — Dashboard Statistics
+### GET `/api/v1/engine/status` — 引擎状态
 
-**Access:** Any
+**访问级别：** 已认证
 
-**Response:**
+返回告警评估引擎状态，包括活跃规则数量、评估指标和状态存储连通性。
+
+---
+
+## 23. 仪表盘
+
+### GET `/api/v1/dashboard/stats` — 仪表盘统计
+
+**访问级别：** 已认证
+
+**响应：**
 
 ```json
 {
@@ -1063,15 +1063,15 @@ Returns the alert evaluation engine status including active rule count, evaluati
 
 ---
 
-## 24. Webhooks
+## 24. Webhook
 
-### POST `/webhooks/alertmanager` — AlertManager Webhook
+### POST `/webhooks/alertmanager` — Alertmanager Webhook
 
-**Access:** Public (authenticated by shared secret or source IP at network level)
+**访问级别：** 公开（通过共享密钥或网络层面的源 IP 进行认证）
 
-Receives alert payloads in [Alertmanager webhook format](https://prometheus.io/docs/alerting/latest/configuration/#webhook_config).
+接收 [Alertmanager webhook 格式](https://prometheus.io/docs/alerting/latest/configuration/#webhook_config) 的告警负载。
 
-**Request Body:**
+**请求体：**
 
 ```json
 {
@@ -1098,45 +1098,45 @@ Receives alert payloads in [Alertmanager webhook format](https://prometheus.io/d
 
 ---
 
-## 25. Alert Action Pages
+## 25. 告警操作页面
 
-Token-authenticated HTML pages linked from Lark notification cards. Allow one-click alert operations without requiring the full UI.
+通过令牌认证的 HTML 页面，从飞书通知卡片中链接。允许一键执行告警操作，无需访问完整 UI。
 
-### GET `/alert-action/:token` — Render Action Page
+### GET `/alert-action/:token` — 渲染操作页面
 
-**Access:** Token in URL path (JWT)
+**访问级别：** URL 路径中的令牌（JWT）
 
-| Query Param | Description |
-|-------------|-------------|
-| `action` | Pre-select action: acknowledge, silence, resolve, close |
-| `duration` | Pre-fill silence duration in minutes |
+| 查询参数 | 说明 |
+|----------|------|
+| `action` | 预选操作：acknowledge、silence、resolve、close |
+| `duration` | 预填静默时长（分钟） |
 
-Returns an HTML page with an action form.
+返回包含操作表单的 HTML 页面。
 
-### POST `/alert-action/:token` — Execute Action
+### POST `/alert-action/:token` — 执行操作
 
-**Access:** Token in URL path (JWT)
+**访问级别：** URL 路径中的令牌（JWT）
 
-**Form Fields** (`application/x-www-form-urlencoded`):
+**表单字段**（`application/x-www-form-urlencoded`）：
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `action` | string | acknowledge, silence, resolve, close |
-| `operator_name` | string | Who performed the action |
-| `note` | string | Optional note |
-| `duration` | string | Silence duration in minutes (for silence action) |
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `action` | string | acknowledge、silence、resolve、close |
+| `operator_name` | string | 操作人 |
+| `note` | string | 备注（可选） |
+| `duration` | string | 静默时长（分钟），仅用于 silence 操作 |
 
-Returns an HTML result page (success or error).
+返回 HTML 结果页面（成功或错误）。
 
 ---
 
-## Route Summary
+## 路由汇总
 
-| Category | Count | Access Level |
-|----------|-------|-------------|
-| Public (no auth) | 10 | Health, login, OIDC, webhooks, Lark callback, action pages |
-| Read-only (any authenticated) | 36 | All GET/list endpoints |
-| Operational (member+) | 12 | Alert actions, subscribe rules |
-| Management (team_lead+) | 35 | Config CRUD, channels, rules, schedules, teams |
-| Admin-only | 10 | User CRUD, system settings, AI/Lark config |
-| **Total** | **~87** | |
+| 类别 | 数量 | 访问级别 |
+|------|------|----------|
+| 公开（无需认证） | 10 | 健康检查、登录、OIDC、Webhook、飞书回调、操作页面 |
+| 只读（已认证） | 36 | 所有 GET/列表端点 |
+| 操作权限（member 及以上） | 12 | 告警操作、订阅规则 |
+| 管理权限（team_lead 及以上） | 35 | 配置 CRUD、渠道、规则、排班、团队 |
+| 仅管理员 | 10 | 用户 CRUD、系统设置、AI/飞书配置 |
+| **合计** | **~87** | |

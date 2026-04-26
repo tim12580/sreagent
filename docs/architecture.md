@@ -1,34 +1,32 @@
-# SREAgent Platform — Architecture
+# SREAgent 平台 — 架构设计
 
-> Last updated: 2026-04-26 (v1.9.10)
+> 最后更新：2026-04-26（v1.9.10）
 
-## Overview
+## 概述
 
-SREAgent is an intelligent SRE operations platform for managing monitoring data sources,
-alert rules and lifecycle, on-call scheduling, AI-powered analysis, and multi-channel
-notifications with Lark (Feishu) deep integration.
+SREAgent 是一个面向 SRE 运维团队的智能运维平台，提供监控数据源管理、告警规则与生命周期管理、值班排班、AI 智能分析，以及与飞书深度集成的多渠道通知能力。
 
-## Tech Stack
+## 技术栈
 
-| Component | Technology | Version |
-|-----------|-----------|---------|
-| Backend | Go | 1.25 |
-| HTTP Framework | Gin | v1.10+ |
+| 组件 | 技术 | 版本 |
+|------|------|------|
+| 后端 | Go | 1.25 |
+| HTTP 框架 | Gin | v1.10+ |
 | ORM | GORM v2 | MySQL dialect |
-| Schema Migrations | golang-migrate | Embedded SQL |
-| Config | Viper | SREAGENT_ prefix env override |
-| Auth | JWT (HS256) + Keycloak OIDC (optional) | go-oidc/v3 |
-| Frontend | Vue 3 (Composition API) | 3.5+ |
-| UI Library | Naive UI | 2.x |
-| Build Tool | Vite | 6.x |
-| State/i18n | Pinia + vue-i18n | — |
-| Database | MySQL 8.0 | — |
-| Cache / State | Redis 7 | go-redis/v8 |
-| Container | Docker (multi-stage) | — |
-| Orchestration | Kubernetes | Plain YAML manifests |
-| CI/CD | GitHub Actions | 3-job pipeline |
+| 数据库迁移 | golang-migrate | Embedded SQL |
+| 配置管理 | Viper | SREAGENT_ 前缀环境变量覆盖 |
+| 认证 | JWT (HS256) + Keycloak OIDC（可选） | go-oidc/v3 |
+| 前端 | Vue 3 (Composition API) | 3.5+ |
+| UI 组件库 | Naive UI | 2.x |
+| 构建工具 | Vite | 6.x |
+| 状态管理 / 国际化 | Pinia + vue-i18n | — |
+| 数据库 | MySQL 8.0 | — |
+| 缓存 / 状态 | Redis 7 | go-redis/v8 |
+| 容器 | Docker（多阶段构建） | — |
+| 编排 | Kubernetes | 原生 YAML 清单 |
+| CI/CD | GitHub Actions | 3 个 Job 流水线 |
 
-## System Architecture
+## 系统架构
 
 ```
                                 ┌─────────────────────────────────┐
@@ -81,164 +79,164 @@ notifications with Lark (Feishu) deep integration.
                      └───────────────────────────────────┘
 ```
 
-## Directory Structure
+## 目录结构
 
 ```
 sreagent/
-├── cmd/server/main.go              # Entry point (~450 lines) — manual DI wiring
+├── cmd/server/main.go              # 入口文件（~450 行）— 手动 DI 组装
 ├── internal/
-│   ├── config/config.go            # Viper config + OIDCConfig struct
-│   ├── model/                      # GORM models
-│   │   ├── user.go                 # User (5 roles, 3 user types, OIDCSubject)
+│   ├── config/config.go            # Viper 配置 + OIDCConfig 结构体
+│   ├── model/                      # GORM 数据模型
+│   │   ├── user.go                 # User（5 种角色、3 种用户类型、OIDCSubject）
 │   │   ├── alert_rule.go           # AlertRule + AlertRuleHistory
-│   │   ├── alert_event.go          # AlertEvent + AlertTimeline (12 action types)
-│   │   ├── datasource.go           # DataSource (4 types)
-│   │   ├── notification.go         # NotifyRule, NotifyMedia, NotifyChannel
-│   │   ├── system_setting.go       # SystemSetting (group+key KV)
+│   │   ├── alert_event.go          # AlertEvent + AlertTimeline（12 种动作类型）
+│   │   ├── datasource.go           # DataSource（4 种类型）
+│   │   ├── notification.go         # NotifyRule、NotifyMedia、NotifyChannel
+│   │   ├── system_setting.go       # SystemSetting（group+key 键值对）
 │   │   ├── team.go                 # Team + TeamMember
 │   │   ├── biz_group.go            # BizGroup + BizGroupMember
-│   │   ├── schedule.go             # Schedule, Participant, Override, Shift
+│   │   ├── schedule.go             # Schedule、Participant、Override、Shift
 │   │   ├── mute_rule.go            # MuteRule
-│   │   ├── inhibition_rule.go      # InhibitionRule (Alertmanager-style)
-│   │   ├── alert_channel.go        # AlertChannel (virtual receiver)
-│   │   ├── label_registry.go       # LabelRegistry (label autocomplete)
+│   │   ├── inhibition_rule.go      # InhibitionRule（Alertmanager 风格）
+│   │   ├── alert_channel.go        # AlertChannel（虚拟接收器）
+│   │   ├── label_registry.go       # LabelRegistry（标签自动补全）
 │   │   ├── subscribe_rule.go       # SubscribeRule
-│   │   ├── user_notify_config.go   # UserNotifyConfig (per-user media)
-│   │   ├── webhook.go              # AlertManager webhook format structs
-│   │   └── rule_import.go          # Prometheus rule import format
-│   ├── handler/                    # Gin HTTP handlers
-│   │   ├── oidc.go                 # OIDC: LoginRedirect, Callback, CallbackJSON, Config
-│   │   ├── alert_event.go          # Alert lifecycle endpoints
-│   │   ├── alert_action.go         # No-auth alert action pages (Lark cards)
+│   │   ├── user_notify_config.go   # UserNotifyConfig（用户级通知介质配置）
+│   │   ├── webhook.go              # AlertManager webhook 格式结构体
+│   │   └── rule_import.go          # Prometheus 规则导入格式
+│   ├── handler/                    # Gin HTTP 处理器
+│   │   ├── oidc.go                 # OIDC：LoginRedirect、Callback、CallbackJSON、Config
+│   │   ├── alert_event.go          # 告警生命周期端点
+│   │   ├── alert_action.go         # 无认证告警操作页面（飞书卡片）
 │   │   ├── alert_rule.go
 │   │   ├── ai.go
-│   │   ├── larkbot.go              # Lark event webhook receiver
+│   │   ├── larkbot.go              # 飞书事件 webhook 接收器
 │   │   ├── datasource.go
-│   │   ├── user.go                 # ChangePassword uses URL :id param
+│   │   ├── user.go                 # ChangePassword 使用 URL :id 参数
 │   │   ├── notification.go         # NotifyRule/Media/Template/Subscribe CRUD
 │   │   ├── schedule.go
-│   │   ├── handler.go              # Base handler with safe GetCurrentUserID
+│   │   ├── handler.go              # 基础处理器，提供安全的 GetCurrentUserID
 │   │   └── system_setting.go
-│   ├── service/                    # Business logic
-│   │   ├── oidc.go                 # Full OIDC service (~383 lines)
+│   ├── service/                    # 业务逻辑层
+│   │   ├── oidc.go                 # 完整的 OIDC 服务（~383 行）
 │   │   ├── notification.go         # RouteAlert + processSubscriptions + SendNotification
-│   │   ├── alert_event.go          # Full lifecycle, batch ops
-│   │   ├── alert_pipeline.go       # AI pipeline orchestration
-│   │   ├── alert_context.go        # Context building for AI
-│   │   ├── alert_rule.go           # Rule CRUD + recordHistory
-│   │   ├── ai.go                   # LLM integration
-│   │   ├── larkbot.go              # Lark bot command handling
-│   │   ├── system_setting.go       # AES-GCM encrypted settings + 30s cache
-│   │   ├── datasource.go           # DS CRUD + health check
-│   │   ├── mute_rule.go            # IsAlertMuted() — wired into engine callback
-│   │   ├── subscribe_rule.go       # FindSubscriptions() — wired into RouteAlert
-│   │   ├── notify_rule.go          # ProcessEvent() — wired into processSubscriptions
-│   │   ├── schedule.go             # OnCall rotation + escalation CRUD
-│   │   ├── auth.go                 # Login, JWT generation
-│   │   └── user.go                 # User CRUD, virtual users
-│   ├── repository/                 # Data access layer (GORM)
+│   │   ├── alert_event.go          # 完整生命周期、批量操作
+│   │   ├── alert_pipeline.go       # AI 流水线编排
+│   │   ├── alert_context.go        # AI 上下文构建
+│   │   ├── alert_rule.go           # 规则 CRUD + recordHistory
+│   │   ├── ai.go                   # LLM 集成
+│   │   ├── larkbot.go              # 飞书机器人指令处理
+│   │   ├── system_setting.go       # AES-GCM 加密设置 + 30 秒缓存
+│   │   ├── datasource.go           # 数据源 CRUD + 健康检查
+│   │   ├── mute_rule.go            # IsAlertMuted() — 接入引擎回调
+│   │   ├── subscribe_rule.go       # FindSubscriptions() — 接入 RouteAlert
+│   │   ├── notify_rule.go          # ProcessEvent() — 接入 processSubscriptions
+│   │   ├── schedule.go             # 值班轮转 + 升级策略 CRUD
+│   │   ├── auth.go                 # 登录、JWT 生成
+│   │   └── user.go                 # 用户 CRUD、虚拟用户
+│   ├── repository/                 # 数据访问层（GORM）
 │   │   ├── alert_rule_history.go   # AlertRuleHistory CRUD
-│   │   └── ...                     # One file per model
+│   │   └── ...                     # 每个模型对应一个文件
 │   ├── middleware/
-│   │   ├── auth.go                 # JWTAuth() + RequireRole() (safe comma-ok assertions)
+│   │   ├── auth.go                 # JWTAuth() + RequireRole()（安全的 comma-ok 断言）
 │   │   ├── cors.go
 │   │   └── logger.go
-│   ├── router/router.go            # All routes with RequireRole (admin/manage/operate)
+│   ├── router/router.go            # 所有路由注册，应用 RequireRole（admin/manage/operate）
 │   ├── pkg/
-│   │   ├── dbmigrate/              # golang-migrate runner + embedded SQL
-│   │   ├── datasource/             # Query clients (Prom, VM, Zabbix, VLogs)
-│   │   ├── lark/                   # Lark webhook + card templates
+│   │   ├── dbmigrate/              # golang-migrate 运行器 + 内嵌 SQL
+│   │   ├── datasource/             # 查询客户端（Prom、VM、Zabbix、VLogs）
+│   │   ├── lark/                   # 飞书 webhook + 卡片模板
 │   │   ├── redis/                  # Redis Client + RedisStateStore
-│   │   └── errors/                 # Structured error codes
+│   │   └── errors/                 # 结构化错误码
 │   └── engine/
-│       ├── evaluator.go            # AlertEvaluator + RuleEvaluator pool
-│       ├── rule_eval.go            # Per-rule state machine + persistence calls
-│       ├── state_store.go          # StateStore interface + StateEntry
-│       ├── suppression.go          # LevelSuppressor (severity-based dedup)
-│       ├── escalation_executor.go  # Runtime escalation executor
-│       └── heartbeat_checker.go    # Heartbeat rule monitor
-├── web/                            # Vue 3 frontend
+│       ├── evaluator.go            # AlertEvaluator + RuleEvaluator 协程池
+│       ├── rule_eval.go            # 单规则状态机 + 持久化调用
+│       ├── state_store.go          # StateStore 接口 + StateEntry
+│       ├── suppression.go          # LevelSuppressor（基于严重级别的去重）
+│       ├── escalation_executor.go  # 运行时升级策略执行器
+│       └── heartbeat_checker.go    # 心跳规则检测器
+├── web/                            # Vue 3 前端
 │   └── src/
 │       ├── api/
-│       │   ├── index.ts            # All API endpoints (~87) including OIDC
-│       │   └── request.ts          # Axios instance, 401 interceptor (Vue Router + dedup)
+│       │   ├── index.ts            # 全部 API 端点（~87 个），包含 OIDC
+│       │   └── request.ts          # Axios 实例，401 拦截器（Vue Router + 去重）
 │       ├── components/
-│       │   ├── common/             # KVEditor, PageHeader, SeverityTag, StatusTag
-│       │   └── index.ts            # Barrel export
-│       ├── composables/            # useCrudModal, usePaginatedList
-│       ├── stores/auth.ts          # Token/user/role + canManage/canOperate + persistence
+│       │   ├── common/             # KVEditor、PageHeader、SeverityTag、StatusTag
+│       │   └── index.ts            # 桶导出
+│       ├── composables/            # useCrudModal、usePaginatedList
+│       ├── stores/auth.ts          # Token/User/Role + canManage/canOperate + 持久化
 │       ├── pages/
-│       │   ├── Login.vue           # Local + OIDC SSO, redirect support
+│       │   ├── Login.vue           # 本地登录 + OIDC SSO，支持重定向
 │       │   ├── dashboard/
 │       │   ├── datasources/
 │       │   ├── alerts/             # rules/ events/ history/ mute/ inhibition/
-│       │   ├── notification/       # Rules, Media, Templates, Subscribe, AlertChannels
-│       │   ├── settings/           # Index.vue + 6 sub-components
-│       │   └── schedule/           # Index.vue + 4 sub-components
-│       ├── layouts/MainLayout.vue  # fetchProfile in onMounted, role-based menu
-│       ├── router/index.ts         # OIDC hash fragment interception + role guard
-│       ├── i18n/                   # zh-CN (~760 lines) + en (~743 lines), locale persisted
-│       ├── utils/                  # alert.ts, format.ts
-│       ├── styles/global.css       # CSS variables, AI-style theme
-│       └── types/index.ts          # TypeScript interfaces (~390 lines)
+│       │   ├── notification/       # Rules、Media、Templates、Subscribe、AlertChannels
+│       │   ├── settings/           # Index.vue + 6 个子组件
+│       │   └── schedule/           # Index.vue + 4 个子组件
+│       ├── layouts/MainLayout.vue  # onMounted 中 fetchProfile，基于角色的菜单
+│       ├── router/index.ts         # OIDC hash fragment 拦截 + 角色守卫
+│       ├── i18n/                   # zh-CN（~760 行）+ en（~743 行），locale 持久化
+│       ├── utils/                  # alert.ts、format.ts
+│       ├── styles/global.css       # CSS 变量、AI 风格主题
+│       └── types/index.ts          # TypeScript 接口定义（~390 行）
 ├── deploy/
 │   ├── docker/
-│   │   ├── Dockerfile              # Multi-stage: Go 1.25 + Node 20 → Alpine 3.20
-│   │   └── entrypoint.sh           # Wait for MySQL, create DB, start server
+│   │   ├── Dockerfile              # 多阶段构建：Go 1.25 + Node 20 → Alpine 3.20
+│   │   └── entrypoint.sh           # 等待 MySQL 就绪，创建数据库，启动服务
 │   └── kubernetes/
 │       ├── 00-namespace.yaml
-│       ├── app/                    # deployment, service, ingress, configmap, secret, hpa
+│       ├── app/                    # deployment、service、ingress、configmap、secret、hpa
 │       ├── mysql/                  # StatefulSet + configmap + secret
 │       └── redis/                  # StatefulSet + secret
-├── configs/config.example.yaml     # All config keys including OIDC section
-├── .github/workflows/docker-build.yml  # CI: test → typecheck → build-and-push
-├── Makefile                        # 14 targets (build, run, lint, docker-*, db-migrate, etc.)
+├── configs/config.example.yaml     # 全部配置项，包含 OIDC 段
+├── .github/workflows/docker-build.yml  # CI：test → typecheck → build-and-push
+├── Makefile                        # 14 个 target（build、run、lint、docker-*、db-migrate 等）
 ├── go.mod                          # module github.com/sreagent/sreagent, go 1.25.0
-├── MODULES.md                      # Module inventory with status
-├── CHANGELOG.md                    # Structured change log
+├── MODULES.md                      # 模块清单及状态
+├── CHANGELOG.md                    # 结构化变更日志
 └── docs/
-    ├── architecture.md             # This file
-    ├── alert-engine.md             # Alert engine state machine & components
-    ├── notification.md             # Notification pipeline design
-    ├── api.md                      # REST API reference (120+ endpoints)
-    ├── ci-deploy.md                # CI/CD pipeline documentation
-    ├── roadmap.md                  # Competitive analysis & feature roadmap
-    └── product-design.md           # Product design document
+    ├── architecture.md             # 本文件
+    ├── alert-engine.md             # 告警引擎状态机与组件
+    ├── notification.md             # 通知管道设计
+    ├── api.md                      # REST API 参考（120+ 端点）
+    ├── ci-deploy.md                # CI/CD 流水线文档
+    ├── roadmap.md                  # 竞品分析与功能路线图
+    └── product-design.md           # 产品设计文档
 ```
 
-## Alert Engine
+## 告警引擎
 
-The alert engine (`internal/engine/`) is the core evaluation loop:
+告警引擎（`internal/engine/`）是核心评估循环：
 
-1. **AlertEvaluator** (`evaluator.go`) manages a pool of `RuleEvaluator` goroutines, one per active alert rule.
-2. **RuleEvaluator** (`rule_eval.go`) implements a per-rule state machine:
-   - `inactive` → query datasource → threshold check → `pending`
-   - `pending` (duration = `for`) → `firing` → create `AlertEvent` + trigger notification
-   - `firing` → query returns normal → `recovery_hold` → `resolved`
-   - `nodata` handling when query returns no results
-3. **LevelSuppressor** (`suppression.go`) prevents lower-severity alerts when a higher-severity alert is already active for the same target.
-4. **Multi-datasource routing** (`executeQuery()`): dispatches to Prometheus/VM PromQL, Zabbix JSON-RPC, or VictoriaLogs LogsQL based on `datasource.Type`.
-5. **EscalationExecutor** (`escalation_executor.go`): independent goroutine that periodically checks firing alerts and executes escalation steps based on configured policies and timing.
+1. **AlertEvaluator**（`evaluator.go`）管理一组 `RuleEvaluator` 协程池，每个活跃的告警规则对应一个协程。
+2. **RuleEvaluator**（`rule_eval.go`）实现单规则状态机：
+   - `inactive` → 查询数据源 → 阈值判断 → `pending`
+   - `pending`（持续时间 = `for`）→ `firing` → 创建 `AlertEvent` + 触发通知
+   - `firing` → 查询结果恢复正常 → `recovery_hold` → `resolved`
+   - 查询无结果时进入 `nodata` 处理
+3. **LevelSuppressor**（`suppression.go`）当同一目标已存在更高级别的告警时，抑制低级别告警。
+4. **多数据源路由**（`executeQuery()`）：根据 `datasource.Type` 分发到 Prometheus/VM PromQL、Zabbix JSON-RPC 或 VictoriaLogs LogsQL。
+5. **EscalationExecutor**（`escalation_executor.go`）：独立协程，周期性检查 firing 状态的告警，根据配置的策略和时间执行升级步骤。
 
-### State Persistence (Redis)
+### 状态持久化（Redis）
 
-- **StateStore interface** (`state_store.go`): `SaveState`, `DeleteState`, `LoadStates`, `DeleteRuleStates`
-- **StateEntry struct**: Fingerprint, Labels, Annotations, Status, ActiveAt, FiredAt, ResolvedAt, Value, RecoveryHoldUntil, LastSeen, EventID
-- **Redis implementation** (`pkg/redis/state_store.go`): Hash key `engine:state:{ruleID}`, field = fingerprint, value = JSON-encoded StateEntry
-- **Persistence points**: all state transitions (pending, firing, resolved, recovery_hold, nodata) call `persistState()` or `deletePersistedState()`
-- **Recovery**: `loadPersistedState()` called on RuleEvaluator startup to restore in-flight states
-- **Graceful degradation**: if Redis is unavailable, engine operates in memory-only mode with warning logs
+- **StateStore 接口**（`state_store.go`）：`SaveState`、`DeleteState`、`LoadStates`、`DeleteRuleStates`
+- **StateEntry 结构体**：Fingerprint、Labels、Annotations、Status、ActiveAt、FiredAt、ResolvedAt、Value、RecoveryHoldUntil、LastSeen、EventID
+- **Redis 实现**（`pkg/redis/state_store.go`）：Hash key `engine:state:{ruleID}`，field = fingerprint，value = JSON 编码的 StateEntry
+- **持久化时机**：所有状态转换（pending、firing、resolved、recovery_hold、nodata）均调用 `persistState()` 或 `deletePersistedState()`
+- **恢复机制**：RuleEvaluator 启动时调用 `loadPersistedState()` 恢复进行中的状态
+- **优雅降级**：Redis 不可用时，引擎以内存模式运行并输出警告日志
 
-### Notification Pipeline
+### 通知管道
 
-Complete wiring from alert to notification:
+从告警触发到通知送达的完整链路：
 
 ```
 Engine fires alert
   → SetOnAlert callback (main.go)
-    → MuteRuleService.IsAlertMuted() — suppress if matched
+    → MuteRuleService.IsAlertMuted() — 命中则静默
     → NotificationService.RouteAlert()
-      → v1 policy-based pipeline (legacy)
+      → v1 策略管道（旧版）
       → processSubscriptions()
         → SubscribeRuleService.FindSubscriptions()
         → For each match: NotifyRuleService.ProcessEvent()
@@ -246,64 +244,63 @@ Engine fires alert
             → lark_webhook / lark_bot / email / custom_webhook
 ```
 
-## Authentication & RBAC
+## 认证与 RBAC
 
-### Local Authentication
-- Stateless JWT (HS256, 24h expiry, no refresh token)
-- bcrypt password hashing
-- Default seed: `admin / admin123`
+### 本地认证
+- 无状态 JWT（HS256，24 小时有效期，无刷新令牌）
+- bcrypt 密码哈希
+- 默认种子账号：`admin / admin123`
 
-### OIDC Authentication (Optional)
-- Full Authorization Code Flow via `go-oidc/v3` + `golang.org/x/oauth2`
-- Config: `oidc.enabled`, `oidc.issuer_url`, `oidc.client_id`, `oidc.client_secret`, `oidc.redirect_url`, `oidc.scopes`, `oidc.role_claim`
-- Configurable role claim path (supports nested JSON paths like `realm_access.roles`)
-- Auto-provisioning: users created/updated on first OIDC login
-- CSRF state validation via secure cookie
-- Token delivery via URL fragment (not query param) to prevent Referer leakage
+### OIDC 认证（可选）
+- 基于 `go-oidc/v3` + `golang.org/x/oauth2` 的完整 Authorization Code Flow
+- 配置项：`oidc.enabled`、`oidc.issuer_url`、`oidc.client_id`、`oidc.client_secret`、`oidc.redirect_url`、`oidc.scopes`、`oidc.role_claim`
+- 可配置的角色声明路径（支持嵌套 JSON 路径，如 `realm_access.roles`）
+- 自动创建用户：首次 OIDC 登录时自动创建或更新用户
+- 通过安全 Cookie 进行 CSRF state 验证
+- Token 通过 URL fragment 传递（非 query param），防止 Referer 泄露
 
-### RBAC Enforcement
-- 5 roles: `admin`, `team_lead`, `member`, `viewer`, `global_viewer`
-- 3 permission tiers applied via `RequireRole()` middleware:
-  - `adminOnly`: admin
-  - `manage`: admin, team_lead
-  - `operate`: admin, team_lead, member
-- All write routes have RequireRole applied; read routes require only JWT authentication
-- Webhook endpoints (`/webhooks/alertmanager`, `/lark/event`) are unauthenticated by design
-- Frontend: `canManage`/`canOperate` computed properties control UI element visibility
-- Role persisted to localStorage for pre-hydration route guard checks
+### RBAC 权限控制
+- 5 种角色：`admin`、`team_lead`、`member`、`viewer`、`global_viewer`
+- 通过 `RequireRole()` 中间件实施 3 级权限控制：
+  - `adminOnly`：仅 admin
+  - `manage`：admin、team_lead
+  - `operate`：admin、team_lead、member
+- 所有写路由均应用 RequireRole；读路由仅需 JWT 认证
+- Webhook 端点（`/webhooks/alertmanager`、`/lark/event`）设计上无需认证
+- 前端：`canManage`/`canOperate` 计算属性控制 UI 元素的可见性
+- Role 持久化到 localStorage，用于水合前的路由守卫检查
 
-## Configuration
+## 配置管理
 
-28 Viper-bound variables via `SREAGENT_` prefix + `AutomaticEnv()`.
-3 manually read env vars: `SREAGENT_SECRET_KEY`, `SREAGENT_DB_DEBUG`, `CORS_ALLOWED_ORIGINS`.
+通过 `SREAGENT_` 前缀 + `AutomaticEnv()` 绑定 28 个 Viper 变量。
+另有 3 个手动读取的环境变量：`SREAGENT_SECRET_KEY`、`SREAGENT_DB_DEBUG`、`CORS_ALLOWED_ORIGINS`。
 
-AI and Lark credentials are stored encrypted (AES-256-GCM) in the `system_settings` table,
-managed through the Web UI settings page, with 30-second TTL in-memory cache.
+AI 和飞书凭据以 AES-256-GCM 加密存储在 `system_settings` 表中，通过 Web UI 设置页管理，并在内存中缓存 30 秒。
 
-OIDC configuration is in config.yaml / environment variables (not in DB).
+OIDC 配置位于 config.yaml / 环境变量中（不在数据库中）。
 
-## Notification Channels
+## 通知渠道
 
-Supported channel types in `SendNotification()`:
-- `lark_webhook` — Feishu Incoming Webhook (interactive card)
-- `lark_bot` — Feishu Bot Webhook
-- `email` — SMTP with TLS support
-- `custom_webhook` — Arbitrary HTTP callback
-- `sms` — Constant defined but not implemented
+`SendNotification()` 支持的渠道类型：
+- `lark_webhook` — 飞书 Incoming Webhook（互动卡片）
+- `lark_bot` — 飞书机器人 Webhook
+- `email` — 支持 TLS 的 SMTP
+- `custom_webhook` — 任意 HTTP 回调
+- `sms` — 已定义常量但尚未实现
 
-## API Design
+## API 设计
 
-- RESTful with `/api/v1` prefix
-- JWT Bearer token authentication (local or OIDC-issued)
-- RBAC via RequireRole middleware on write endpoints
-- Response format: `{"code": 0, "message": "ok", "data": {}}`
-- Pagination: `?page=1&page_size=20`
-- ~87 endpoints documented in `docs/api.md`
-- Error codes: 0 (success), 10001 (param), 10002 (business), 10200 (forbidden), 40001 (unauthorized), 50001 (DB), 50003 (external API)
+- RESTful 风格，统一 `/api/v1` 前缀
+- JWT Bearer token 认证（本地签发或 OIDC 签发）
+- 写端点通过 RequireRole 中间件实施 RBAC
+- 响应格式：`{"code": 0, "message": "ok", "data": {}}`
+- 分页参数：`?page=1&page_size=20`
+- ~87 个端点，详见 `docs/api.md`
+- 错误码：0（成功）、10001（参数错误）、10002（业务错误）、10200（权限不足）、40001（未授权）、50001（数据库错误）、50003（外部 API 错误）
 
-## Data Model
+## 数据模型
 
-Core entities and their relationships:
+核心实体及其关系：
 
 ```
 DataSource ──1:N── AlertRule ──1:N── AlertEvent ──1:N── AlertTimeline
@@ -324,22 +321,22 @@ SubscribeRule ── match labels → additional recipients (wired into processS
 SystemSetting ── group+key KV store (AI/Lark config, AES-GCM encrypted)
 ```
 
-## Frontend Architecture
+## 前端架构
 
-### Component Organization
-- **Shared components** (`components/common/`): KVEditor, PageHeader, SeverityTag, StatusTag
-- **Composables** (`composables/`): `useCrudModal` (modal CRUD pattern), `usePaginatedList` (paginated fetch pattern)
-- **Large pages split into sub-components**:
-  - Settings: 6 sub-components (UserManagement, TeamManagement, VirtualUsers, BizGroupManagement, AIConfig, LarkBotConfig)
-  - Schedule: 4 sub-components (ScheduleSidebar, ScheduleModal, ShiftModal, ParticipantsList)
+### 组件组织
+- **共享组件**（`components/common/`）：KVEditor、PageHeader、SeverityTag、StatusTag
+- **Composables**（`composables/`）：`useCrudModal`（模态框 CRUD 模式）、`usePaginatedList`（分页请求模式）
+- **大型页面拆分为子组件**：
+  - Settings：6 个子组件（UserManagement、TeamManagement、VirtualUsers、BizGroupManagement、AIConfig、LarkBotConfig）
+  - Schedule：4 个子组件（ScheduleSidebar、ScheduleModal、ShiftModal、ParticipantsList）
 
-### State Management
-- Pinia auth store: token, user profile, role, computed `canManage`/`canOperate`
-- Role persisted to localStorage for immediate route guard checks before API hydration
-- Locale persisted to localStorage, read on i18n initialization
+### 状态管理
+- Pinia auth store：token、用户资料、角色、计算属性 `canManage`/`canOperate`
+- Role 持久化到 localStorage，确保在 API 水合前即可进行路由守卫检查
+- Locale 持久化到 localStorage，i18n 初始化时读取
 
-### Security
-- 401 interceptor uses Vue Router (not `window.location`) with dedup flag
-- OIDC token intercepted from URL hash fragment on page load
-- `v-html` replaced with `<pre>` text content where XSS risk existed
-- Settings route guarded by role check (`admin`, `team_lead`)
+### 安全措施
+- 401 拦截器使用 Vue Router（非 `window.location`），并设置去重标志
+- 页面加载时从 URL hash fragment 拦截 OIDC token
+- 存在 XSS 风险的 `v-html` 已替换为 `<pre>` 文本内容
+- Settings 路由通过角色检查（`admin`、`team_lead`）进行守卫
