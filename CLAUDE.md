@@ -118,6 +118,8 @@ NotifyRule / MuteRule / InhibitionRule / SubscribeRule ── match labels → N
 ### 数据模型变更
 1. 新增/修改字段 → 更新 MODULES.md 数据模型关系
 2. 新增迁移文件 → 遵循 `migrations/{序号}_{描述}.{up|down}.sql` 规范
+3. CHANGELOG 该版本条目中注明迁移文件编号（如 `迁移: 000015_xxx`）
+4. 必须同时提供 up + down 两个文件，down 必须能干净回退
 
 ### 测试变更
 1. 新增测试 → 更新 MODULES.md 测试覆盖表（状态 + 覆盖率）
@@ -127,9 +129,13 @@ NotifyRule / MuteRule / InhibitionRule / SubscribeRule ── match labels → N
 1. 新增/修改环境变量 → 更新 CLAUDE.md 环境变量段
 2. 新增配置项 → 更新 config.example.yaml
 
-### 版本发布
+### 版本发布（发版 checklist）
 1. 更新 CLAUDE.md 头部版本号
 2. 更新 MODULES.md 头部版本号
+3. 确认所有新增迁移文件有对应的 down.sql
+4. CHANGELOG 该版本条目列出所有迁移文件编号
+5. `go build` + `go test` 通过
+6. 标注该版本依赖的最低迁移版本（方便回滚判断）
 
 ## 对话规范（自动生效）
 
