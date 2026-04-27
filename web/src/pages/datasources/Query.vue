@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { datasourceApi } from '@/api'
@@ -12,33 +12,50 @@ const { t } = useI18n()
 const datasources = ref<DataSource[]>([])
 const selectedDsId = ref<number | null>(null)
 const expression = ref('')
-const queryTime = ref(0)
 const loading = ref(false)
+const pageLoading = ref(true)
 const queryResult = ref<QueryResponse | null>(null)
 const queryError = ref('')
 
+const dsOptions = computed(() =>
+  datasources.value.map(ds => ({
+    label: `${ds.name} (${ds.type})`,
+    value: ds.id,
+  }))
+)
+
+const hasDatasources = computed(() => datasources.value.length > 0)
+
 async function fetchDatasources() {
+  pageLoading.value = true
   try {
-    const { data } = await datasourceApi.list({ page: 1, page_size: 100 })
-    datasources.value = (data.data.list || []).filter(ds => ds.is_enabled)
+    const res = await datasourceApi.list({ page: 1, page_size: 100 })
+    datasources.value = (res.data.data.list || []).filter(ds => ds.is_enabled)
   } catch (err: any) {
-    message.error(err.message || t('datasource.fetchFailed'))
+    message.error(err.message || 'Failed to load datasources')
+  } finally {
+    pageLoading.value = false
   }
 }
 
 async function handleQuery() {
-  if (!selectedDsId.value) { message.warning(t('datasource.selectDatasource')); return }
-  if (!expression.value.trim()) { message.warning(t('datasource.queryExpression')); return }
+  if (!selectedDsId.value) {
+    message.warning(t('datasource.selectDatasource'))
+    return
+  }
+  if (!expression.value.trim()) {
+    message.warning(t('datasource.queryExpression'))
+    return
+  }
 
   loading.value = true
   queryResult.value = null
   queryError.value = ''
   try {
-    const { data } = await datasourceApi.query(selectedDsId.value, {
+    const res = await datasourceApi.query(selectedDsId.value, {
       expression: expression.value,
-      time: queryTime.value,
     })
-    queryResult.value = data.data
+    queryResult.value = res.data.data
   } catch (err: any) {
     queryError.value = err.message || 'Query failed'
   } finally {
@@ -57,50 +74,47 @@ onMounted(fetchDatasources)
   <div class="query-page">
     <PageHeader :title="t('datasource.queryTitle')" :subtitle="t('datasource.querySubtitle')" />
 
-    <n-card :bordered="false" class="content-card">
-      <n-space vertical :size="16">
-        <div>
-          <label>{{ t('datasource.selectDatasource') }}</label>
-          <n-select
-            v-model:value="selectedDsId"
-            :options="datasources.map(ds => ({ label: `${ds.name} (${ds.type})`, value: ds.id }))"
-            :placeholder="datasources.length === 0 ? t('datasource.noEnabledDatasource') : t('datasource.selectDatasource')"
-            filterable
-          />
-        </div>
-        <div>
-          <label>{{ t('datasource.queryTime') }}</label>
-          <n-select
-            v-model:value="queryTime"
-            :options="[
-              { label: 'now', value: 0 },
-              { label: '5m ago', value: 300 },
-              { label: '15m ago', value: 900 },
-              { label: '1h ago', value: 3600 },
-            ]"
-            :placeholder="t('datasource.queryTime')"
-          />
-        </div>
-        <div>
-          <label>{{ t('datasource.queryExpression') }}</label>
-          <n-input
-            v-model:value="expression"
-            type="textarea"
-            :placeholder="t('datasource.queryPlaceholder')"
-            :rows="3"
-            @keyup.ctrl.enter="handleQuery"
-          />
-        </div>
-        <n-button
-          type="primary"
-          :loading="loading"
-          @click="handleQuery"
-          :disabled="!selectedDsId || !expression.trim()"
-        >
-          {{ t('datasource.executeQuery') }}
-        </n-button>
-      </n-space>
-    </n-card>
+    <n-spin :show="pageLoading">
+      <n-card :bordered="false" class="content-card">
+        <n-empty v-if="!pageLoading && !hasDatasources" :description="t('datasource.noEnabledDatasource')">
+          <template #extra>
+            <n-button type="primary" @click="$router.push('/datasources')">
+              {{ t('datasource.add') }}
+            </n-button>
+          </template>
+        </n-empty>
+
+        <n-form v-else label-placement="top">
+          <n-form-item :label="t('datasource.selectDatasource')">
+            <n-select
+              v-model:value="selectedDsId"
+              :options="dsOptions"
+              :placeholder="t('datasource.selectDatasource')"
+              filterable
+            />
+          </n-form-item>
+
+          <n-form-item :label="t('datasource.queryExpression')">
+            <n-input
+              v-model:value="expression"
+              type="textarea"
+              :placeholder="t('datasource.queryPlaceholder')"
+              :rows="4"
+              @keyup.ctrl.enter="handleQuery"
+            />
+          </n-form-item>
+
+          <n-button
+            type="primary"
+            :loading="loading"
+            :disabled="!selectedDsId || !expression.trim()"
+            @click="handleQuery"
+          >
+            {{ t('datasource.executeQuery') }}
+          </n-button>
+        </n-form>
+      </n-card>
+    </n-spin>
 
     <n-alert v-if="queryError" type="error" style="margin-top: 16px" closable @close="queryError = ''">
       {{ queryError }}
@@ -145,5 +159,4 @@ onMounted(fetchDatasources)
 <style scoped>
 .query-page { max-width: 1400px; }
 .content-card { border-radius: 12px; }
-.content-card label { display: block; margin-bottom: 4px; font-size: 13px; color: #666; }
 </style>
