@@ -10,6 +10,7 @@ import AIConfig from './AIConfig.vue'
 import LarkBotConfig from './LarkBotConfig.vue'
 import OIDCConfig from './OIDCConfig.vue'
 import SMTPConfig from './SMTPConfig.vue'
+import SecurityConfig from './SecurityConfig.vue'
 import AuditLog from './AuditLog.vue'
 
 const { t } = useI18n()
@@ -55,6 +56,10 @@ const userMgmtRef = ref<InstanceType<typeof UserManagement> | null>(null)
 
         <n-tab-pane name="smtp" :tab="t('settings.smtpConfig')">
           <SMTPConfig />
+        </n-tab-pane>
+
+        <n-tab-pane name="security" :tab="t('settings.securityConfig')">
+          <SecurityConfig />
         </n-tab-pane>
 
         <n-tab-pane name="audit" :tab="t('settings.auditLog')">

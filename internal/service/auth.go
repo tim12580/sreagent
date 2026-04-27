@@ -15,13 +15,26 @@ import (
 )
 
 type AuthService struct {
-	userRepo *repository.UserRepository
-	jwtCfg   *config.JWTConfig
-	logger   *zap.Logger
+	userRepo   *repository.UserRepository
+	jwtCfg     *config.JWTConfig
+	settingSvc *SystemSettingService
+	logger     *zap.Logger
 }
 
-func NewAuthService(userRepo *repository.UserRepository, jwtCfg *config.JWTConfig, logger *zap.Logger) *AuthService {
-	return &AuthService{userRepo: userRepo, jwtCfg: jwtCfg, logger: logger}
+func NewAuthService(userRepo *repository.UserRepository, jwtCfg *config.JWTConfig, settingSvc *SystemSettingService, logger *zap.Logger) *AuthService {
+	return &AuthService{userRepo: userRepo, jwtCfg: jwtCfg, settingSvc: settingSvc, logger: logger}
+}
+
+// getExpireSeconds returns the effective JWT expiration in seconds.
+// It reads from the system settings DB first, falling back to the config file value.
+func (s *AuthService) getExpireSeconds(ctx context.Context) int {
+	if s.settingSvc != nil {
+		cfg, err := s.settingSvc.GetSecurityConfig(ctx, s.jwtCfg.Expire)
+		if err == nil && cfg.JWTExpireSeconds > 0 {
+			return cfg.JWTExpireSeconds
+		}
+	}
+	return s.jwtCfg.Expire
 }
 
 func (s *AuthService) Login(ctx context.Context, username, password string) (string, int, error) {
@@ -38,13 +51,14 @@ func (s *AuthService) Login(ctx context.Context, username, password string) (str
 		return "", 0, apperr.ErrInvalidCreds
 	}
 
-	token, err := middleware.GenerateToken(user.ID, user.Username, string(user.Role), s.jwtCfg.Secret, s.jwtCfg.Expire)
+	expire := s.getExpireSeconds(ctx)
+	token, err := middleware.GenerateToken(user.ID, user.Username, string(user.Role), s.jwtCfg.Secret, expire)
 	if err != nil {
 		s.logger.Error("failed to generate token", zap.Error(err))
 		return "", 0, apperr.Wrap(apperr.ErrInternal, err)
 	}
 
-	return token, s.jwtCfg.Expire, nil
+	return token, expire, nil
 }
 
 func (s *AuthService) GetProfile(ctx context.Context, userID uint) (*model.User, error) {
@@ -83,13 +97,14 @@ func (s *AuthService) RefreshToken(ctx context.Context, tokenString string) (str
 		return "", 0, apperr.WithMessage(apperr.ErrForbidden, "account is disabled")
 	}
 
-	newToken, err := middleware.GenerateToken(user.ID, user.Username, string(user.Role), s.jwtCfg.Secret, s.jwtCfg.Expire)
+	expire := s.getExpireSeconds(ctx)
+	newToken, err := middleware.GenerateToken(user.ID, user.Username, string(user.Role), s.jwtCfg.Secret, expire)
 	if err != nil {
 		s.logger.Error("failed to generate refresh token", zap.Error(err))
 		return "", 0, apperr.Wrap(apperr.ErrInternal, err)
 	}
 
-	return newToken, s.jwtCfg.Expire, nil
+	return newToken, expire, nil
 }
 
 // HashPassword hashes a password using bcrypt.

@@ -126,7 +126,7 @@ func main() {
 	dsSvc := service.NewDataSourceService(dsRepo, zapLogger)
 	ruleSvc := service.NewAlertRuleService(ruleRepo, alertRuleHistoryRepo, dsRepo, zapLogger)
 	eventSvc := service.NewAlertEventService(eventRepo, timelineRepo, zapLogger)
-	authSvc := service.NewAuthService(userRepo, &cfg.JWT, zapLogger)
+	authSvc := service.NewAuthService(userRepo, &cfg.JWT, settingSvc, zapLogger)
 	larkSvc := service.NewLarkService(zapLogger, cfg.Server.ExternalURL(), cfg.JWT.Secret)
 	larkSvc.SetSystemSettingService(settingSvc)
 	aiSvc := service.NewAIService(settingSvc, zapLogger)
@@ -414,6 +414,7 @@ func main() {
 		UserNotifyConfig: handler.NewUserNotifyConfigHandler(userNotifyConfigSvc),
 		AuditLog:         handler.NewAuditLogHandler(auditLogSvc),
 		SMTPSettings:     handler.NewSMTPSettingsHandler(settingSvc),
+		SecuritySettings: handler.NewSecuritySettingsHandler(settingSvc, &cfg.JWT),
 		InhibitionRule:   handler.NewInhibitionRuleHandler(inhibitionRuleSvc),
 		Heartbeat:        handler.NewHeartbeatHandler(ruleSvc),
 		LabelRegistry:    handler.NewLabelRegistryHandler(labelRegistrySvc),

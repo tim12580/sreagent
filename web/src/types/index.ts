@@ -55,6 +55,7 @@ export interface DataSource {
   auth_type: string
   health_check_interval: number
   is_enabled: boolean
+  version?: string
   created_at: string
   updated_at: string
 }

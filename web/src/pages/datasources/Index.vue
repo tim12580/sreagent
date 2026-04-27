@@ -200,6 +200,15 @@ function getTypeColor(type: string) {
   return colors[type] || '#666'
 }
 
+function getStatusLabel(status: string) {
+  const map: Record<string, string> = {
+    healthy: t('datasource.healthy'),
+    unhealthy: t('datasource.unhealthy'),
+    unknown: t('datasource.unknown'),
+  }
+  return map[status] || status
+}
+
 onMounted(fetchList)
 </script>
 
@@ -227,7 +236,7 @@ onMounted(fetchList)
                 {{ ds.type }}
               </div>
               <n-tag :type="getDatasourceStatusType(ds.status)" size="small" round>
-                {{ ds.status }}
+                {{ getStatusLabel(ds.status) }}
               </n-tag>
             </div>
             <h3 class="ds-name">{{ ds.name }}</h3>
@@ -249,6 +258,7 @@ onMounted(fetchList)
 
             <div class="ds-meta">
               <n-text depth="3" style="font-size: 11px">Auth: {{ ds.auth_type || 'none' }}</n-text>
+              <n-text v-if="ds.version" depth="3" style="font-size: 11px">v{{ ds.version }}</n-text>
               <n-text depth="3" style="font-size: 11px">{{ ds.is_enabled ? t('common.enabled') : t('common.disabled') }}</n-text>
             </div>
 

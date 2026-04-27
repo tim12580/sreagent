@@ -32,8 +32,9 @@ type DataSource struct {
 	AuthType   string `json:"auth_type" gorm:"size:32"` // none, basic, bearer, api_key
 	AuthConfig string `json:"-" gorm:"type:text"`       // JSON: {"username":"x","password":"y"} or {"token":"x"}
 	// Health check
-	HealthCheckInterval int  `json:"health_check_interval" gorm:"default:60"` // seconds
-	IsEnabled           bool `json:"is_enabled" gorm:"default:true"`
+	HealthCheckInterval int    `json:"health_check_interval" gorm:"default:60"` // seconds
+	IsEnabled           bool   `json:"is_enabled" gorm:"default:true"`
+	Version             string `json:"version" gorm:"size:128"` // populated by health check
 }
 
 func (DataSource) TableName() string {

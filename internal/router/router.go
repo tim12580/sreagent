@@ -41,6 +41,7 @@ type Handlers struct {
 	UserNotifyConfig *handler.UserNotifyConfigHandler
 	AuditLog         *handler.AuditLogHandler
 	SMTPSettings     *handler.SMTPSettingsHandler
+	SecuritySettings *handler.SecuritySettingsHandler
 	InhibitionRule   *handler.InhibitionRuleHandler
 	Heartbeat        *handler.HeartbeatHandler
 	LabelRegistry    *handler.LabelRegistryHandler
@@ -389,6 +390,15 @@ func Setup(cfg *config.Config, handlers *Handlers, logger *zap.Logger) *gin.Engi
 					smtpSettings.GET("", adminOnly, handlers.SMTPSettings.GetConfig)
 					smtpSettings.PUT("", adminOnly, handlers.SMTPSettings.UpdateConfig)
 					smtpSettings.POST("/test", adminOnly, handlers.SMTPSettings.TestConnection)
+				}
+			}
+
+			// Security settings — admin only
+			if handlers.SecuritySettings != nil {
+				secSettings := auth.Group("/settings/security")
+				{
+					secSettings.GET("", adminOnly, handlers.SecuritySettings.GetConfig)
+					secSettings.PUT("", adminOnly, handlers.SecuritySettings.UpdateConfig)
 				}
 			}
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, inject, onMounted } from 'vue'
+import { ref, inject, onMounted, watch } from 'vue'
 import type { Ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useMessage } from 'naive-ui'
@@ -22,6 +22,7 @@ const form = ref({
   password: '',
 })
 const loading = ref(false)
+const loginError = ref('')
 
 // OIDC SSO state
 const oidcEnabled = ref(false)
@@ -39,8 +40,9 @@ function handleLangChange(val: string) {
 }
 
 async function handleLogin() {
+  loginError.value = ''
   if (!form.value.username || !form.value.password) {
-    message.warning(t('auth.pleaseEnter') || 'Please enter username and password')
+    loginError.value = t('auth.pleaseEnter') || 'Please enter username and password'
     return
   }
 
@@ -50,7 +52,7 @@ async function handleLogin() {
     message.success(t('auth.loginSuccess'))
     router.push((route.query.redirect as string) || '/dashboard')
   } catch (err: any) {
-    message.error(err.message || t('auth.loginFailed'))
+    loginError.value = err.message || t('auth.loginFailed')
   } finally {
     loading.value = false
   }
@@ -76,6 +78,10 @@ async function checkOIDCConfig() {
 
 onMounted(() => {
   checkOIDCConfig()
+})
+
+watch([() => form.value.username, () => form.value.password], () => {
+  if (loginError.value) loginError.value = ''
 })
 </script>
 
@@ -142,6 +148,13 @@ onMounted(() => {
         </n-button>
       </n-form>
 
+      <!-- Inline login error -->
+      <div v-if="loginError" class="login-error">
+        <n-alert type="error" :show-icon="true" :closable="false" style="margin-top: 16px">
+          {{ loginError }}
+        </n-alert>
+      </div>
+
       <!-- SSO Login -->
       <div v-if="oidcEnabled" class="sso-section">
         <n-divider>
@@ -160,11 +173,6 @@ onMounted(() => {
         </n-button>
       </div>
 
-      <div class="login-footer">
-        <n-text depth="3" style="font-size: 12px">
-          {{ t('auth.defaultCredentials') }}
-        </n-text>
-      </div>
     </div>
   </div>
 </template>
@@ -276,8 +284,4 @@ onMounted(() => {
 
 .sso-section { margin-top: 16px; }
 
-.login-footer {
-  text-align: center;
-  margin-top: 24px;
-}
 </style>

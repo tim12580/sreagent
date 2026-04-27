@@ -4,6 +4,24 @@
 
 ---
 
+## [v1.11.0] - 2026-04-27
+
+### Added
+- 登录页密码/用户名错误 inline 提示（表单内 alert 替代右上角 message）
+- 数据源卡片显示版本号（健康检查成功后持久化 version 字段）
+- 数据源状态标签国际化（healthy/unhealthy/unknown 随语言切换）
+- 密码复杂度校验（最少 8 位，含大小写字母和数字）
+- JWT 超时可配置（系统设置 > 安全配置，预设 1h/4h/8h/24h/7d）
+- 数据源查询页面（选择数据源 + 输入 PromQL/LogQL 执行查询）
+- 迁移: 000015_datasource_version
+
+### Removed
+- 登录页默认账号 admin/admin123 提示
+
+### Changed
+- AuthService.Login / RefreshToken 读取 system_settings 中的 jwt_expire_seconds
+- handler/auth.go, handler/user.go 密码最小长度约束从 6 提升至 8
+
 ## [v1.10.0] - 2026-04-26
 
 ### Added

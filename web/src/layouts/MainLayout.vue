@@ -109,7 +109,13 @@ function renderIcon(icon: any) {
 const menuOptions = computed<MenuOption[]>(() => {
   const items: MenuOption[] = [
     { label: t('menu.dashboard'),        key: '/dashboard',  icon: renderIcon(GridOutline) },
-    { label: t('menu.datasources'),      key: '/datasources', icon: renderIcon(ServerOutline) },
+    {
+      label: t('menu.datasources'), key: '/datasources', icon: renderIcon(ServerOutline),
+      children: [
+        { label: t('menu.datasourceList'), key: '/datasources' },
+        { label: t('menu.datasourceQuery'), key: '/datasources/query' },
+      ],
+    },
     {
       label: t('menu.alertManagement'),  key: '/alerts', icon: renderIcon(AlertCircleOutline),
       children: [
@@ -131,12 +137,14 @@ const menuOptions = computed<MenuOption[]>(() => {
 })
 
 function resolveActiveKey(p: string): string {
-  if (p.startsWith('/alerts/rules'))      return '/alerts/rules'
-  if (p.startsWith('/alerts/events'))     return '/alerts/events'
-  if (p.startsWith('/alerts/history'))    return '/alerts/history'
-  if (p.startsWith('/alerts/mute-rules'))       return '/alerts/mute-rules'
-  if (p.startsWith('/alerts/inhibition-rules')) return '/alerts/inhibition-rules'
-  if (p.startsWith('/notification'))            return '/notification'
+  if (p.startsWith('/datasources/query'))         return '/datasources/query'
+  if (p.startsWith('/datasources'))               return '/datasources'
+  if (p.startsWith('/alerts/rules'))              return '/alerts/rules'
+  if (p.startsWith('/alerts/events'))             return '/alerts/events'
+  if (p.startsWith('/alerts/history'))            return '/alerts/history'
+  if (p.startsWith('/alerts/mute-rules'))         return '/alerts/mute-rules'
+  if (p.startsWith('/alerts/inhibition-rules'))   return '/alerts/inhibition-rules'
+  if (p.startsWith('/notification'))              return '/notification'
   return p
 }
 
@@ -202,6 +210,7 @@ const pageTitle = computed(() => {
   const p = route.path
   if (p === '/dashboard')                         return t('menu.dashboard')
   if (p === '/datasources')                       return t('menu.datasources')
+  if (p.startsWith('/datasources/query'))         return t('menu.datasourceQuery')
   if (p.startsWith('/alerts/rules'))              return t('menu.alertRules')
   if (p.startsWith('/alerts/events'))             return t('menu.activeAlerts')
   if (p.startsWith('/alerts/history'))            return t('menu.alertHistory')
@@ -214,6 +223,7 @@ const pageTitle = computed(() => {
 })
 const parentTitle = computed(() => {
   const p = route.path
+  if (p.startsWith('/datasources/'))   return t('menu.datasources')
   if (p.startsWith('/alerts/'))        return t('menu.alertManagement')
   if (p.startsWith('/notification'))   return ''
   return ''

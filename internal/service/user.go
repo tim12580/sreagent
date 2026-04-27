@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"unicode"
 
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -11,6 +12,28 @@ import (
 	apperr "github.com/sreagent/sreagent/internal/pkg/errors"
 	"github.com/sreagent/sreagent/internal/repository"
 )
+
+// validatePassword checks password complexity: at least 8 chars, with upper, lower, and digit.
+func validatePassword(pwd string) error {
+	if len(pwd) < 8 {
+		return apperr.WithMessage(apperr.ErrInvalidParam, "password must be at least 8 characters")
+	}
+	var hasUpper, hasLower, hasDigit bool
+	for _, c := range pwd {
+		switch {
+		case unicode.IsUpper(c):
+			hasUpper = true
+		case unicode.IsLower(c):
+			hasLower = true
+		case unicode.IsDigit(c):
+			hasDigit = true
+		}
+	}
+	if !hasUpper || !hasLower || !hasDigit {
+		return apperr.WithMessage(apperr.ErrInvalidParam, "password must contain uppercase, lowercase letters and digits")
+	}
+	return nil
+}
 
 type UserService struct {
 	repo   *repository.UserRepository
@@ -23,6 +46,11 @@ func NewUserService(repo *repository.UserRepository, logger *zap.Logger) *UserSe
 
 // Create creates a new user with a hashed password.
 func (s *UserService) Create(ctx context.Context, user *model.User) error {
+	// Validate password complexity
+	if err := validatePassword(user.Password); err != nil {
+		return err
+	}
+
 	// Check if username already exists
 	existing, _ := s.repo.GetByUsername(ctx, user.Username)
 	if existing != nil {
@@ -182,6 +210,10 @@ func (s *UserService) ToggleActive(ctx context.Context, id uint, active bool) er
 
 // ChangePassword changes a user's password after verifying the old password.
 func (s *UserService) ChangePassword(ctx context.Context, userID uint, oldPassword, newPassword string) error {
+	if err := validatePassword(newPassword); err != nil {
+		return err
+	}
+
 	user, err := s.repo.GetByID(ctx, userID)
 	if err != nil {
 		return apperr.ErrUserNotFound

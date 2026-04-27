@@ -23,7 +23,7 @@ func (h *UserHandler) SetAuditService(svc *service.AuditLogService) {
 // CreateUserRequest is the request body for creating a user.
 type CreateUserRequest struct {
 	Username    string     `json:"username" binding:"required"`
-	Password    string     `json:"password" binding:"required,min=6"`
+	Password    string     `json:"password" binding:"required,min=8"`
 	DisplayName string     `json:"display_name"`
 	Email       string     `json:"email" binding:"omitempty,email"`
 	Phone       string     `json:"phone"`
@@ -50,7 +50,7 @@ type ToggleActiveRequest struct {
 // ChangePasswordRequest is the request body for changing a user's password.
 type ChangePasswordRequest struct {
 	OldPassword string `json:"old_password" binding:"required"`
-	NewPassword string `json:"new_password" binding:"required,min=6"`
+	NewPassword string `json:"new_password" binding:"required,min=8"`
 }
 
 // Create creates a new user.

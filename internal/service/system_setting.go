@@ -40,11 +40,17 @@ type LarkConfig struct {
 	BotEnabled        bool   `json:"bot_enabled"`
 }
 
+// SecurityConfig holds security-related settings stored in the DB.
+type SecurityConfig struct {
+	JWTExpireSeconds int `json:"jwt_expire_seconds"` // default from config file
+}
+
 const (
-	groupAI   = "ai"
-	groupLark = "lark"
-	groupOIDC = "oidc"
-	groupSMTP = "smtp"
+	groupAI      = "ai"
+	groupLark    = "lark"
+	groupOIDC    = "oidc"
+	groupSMTP    = "smtp"
+	groupSecurity = "security"
 
 	// cacheTTL is how long a cached config entry is considered fresh.
 	cacheTTL = 30 * time.Second
@@ -523,6 +529,31 @@ func (s *SystemSettingService) SaveSMTPConfig(ctx context.Context, cfg SMTPConfi
 	s.smtpCache = cachedConfig[SMTPConfig]{}
 	s.smtpMu.Unlock()
 	return nil
+}
+
+// ---- Security config ----------------------------------------------------------
+
+// GetSecurityConfig loads security settings from cache or DB.
+func (s *SystemSettingService) GetSecurityConfig(ctx context.Context, defaultExpire int) (SecurityConfig, error) {
+	kv, err := s.repo.ListByGroup(ctx, groupSecurity)
+	if err != nil {
+		return SecurityConfig{JWTExpireSeconds: defaultExpire}, err
+	}
+	expire := defaultExpire
+	if v, ok := kv["jwt_expire_seconds"]; ok {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			expire = n
+		}
+	}
+	return SecurityConfig{JWTExpireSeconds: expire}, nil
+}
+
+// SaveSecurityConfig persists security settings to DB.
+func (s *SystemSettingService) SaveSecurityConfig(ctx context.Context, cfg SecurityConfig) error {
+	kv := map[string]string{
+		"jwt_expire_seconds": strconv.Itoa(cfg.JWTExpireSeconds),
+	}
+	return s.repo.SetGroup(ctx, groupSecurity, kv)
 }
 
 // ---- helpers -----------------------------------------------------------------

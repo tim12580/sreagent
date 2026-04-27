@@ -30,6 +30,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Data Sources', icon: 'server' },
       },
       {
+        path: 'datasources/query',
+        name: 'DatasourceQuery',
+        component: () => import('@/pages/datasources/Query.vue'),
+        meta: { title: 'Query', icon: 'search' },
+      },
+      {
         path: 'alerts',
         name: 'Alerts',
         redirect: '/alerts/rules',

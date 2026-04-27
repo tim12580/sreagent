@@ -564,6 +564,15 @@ export const smtpSettingsApi = {
     request.post<ApiResponse<{ message: string }>>('/settings/smtp/test', { to }),
 }
 
+// ===== Security Settings API =====
+export const securitySettingsApi = {
+  getConfig: () =>
+    request.get<ApiResponse<{ jwt_expire_seconds: number }>>('/settings/security'),
+
+  updateConfig: (data: { jwt_expire_seconds: number }) =>
+    request.put<ApiResponse<null>>('/settings/security', data),
+}
+
 // ===== Mute Rule Preview API =====
 export const mutePreviewApi = {
   preview: () =>

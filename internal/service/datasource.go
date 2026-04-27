@@ -130,6 +130,9 @@ func (s *DataSourceService) HealthCheck(ctx context.Context, id uint) (*HealthCh
 	}
 
 	ds.Status = status
+	if hr.Healthy && hr.Version != "" {
+		ds.Version = hr.Version
+	}
 	if err := s.repo.Update(ctx, ds); err != nil {
 		s.logger.Error("failed to persist datasource health status",
 			zap.String("datasource", ds.Name),
