@@ -570,6 +570,6 @@ func (re *RuleEvaluator) executeQuery(ctx context.Context) ([]datasource.QueryRe
 		return datasource.VictoriaLogsInstantQuery(ctx, ep, at, ac, expr)
 	default:
 		// prometheus, victoriametrics and any future Prometheus-compatible sources
-		return re.queryClient.InstantQuery(ctx, ep, at, ac, expr)
+		return re.queryClient.InstantQuery(ctx, ep, at, ac, expr, time.Time{})
 	}
 }

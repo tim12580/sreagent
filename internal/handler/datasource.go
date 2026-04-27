@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
 
 	"github.com/sreagent/sreagent/internal/model"
@@ -167,14 +169,20 @@ func (h *DataSourceHandler) Query(c *gin.Context) {
 	}
 
 	var req struct {
-		Expression string `json:"expression" binding:"required"`
+		Expression string  `json:"expression" binding:"required"`
+		Time       float64 `json:"time"` // unix timestamp in seconds, 0 or omitted = now
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		ErrorWithMessage(c, 10001, err.Error())
 		return
 	}
 
-	result, err := h.svc.QueryDatasource(c.Request.Context(), id, req.Expression)
+	var queryTime time.Time
+	if req.Time > 0 {
+		queryTime = time.UnixMilli(int64(req.Time * 1000))
+	}
+
+	result, err := h.svc.QueryDatasource(c.Request.Context(), id, req.Expression, queryTime)
 	if err != nil {
 		Error(c, err)
 		return

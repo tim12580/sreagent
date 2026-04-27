@@ -96,11 +96,15 @@ func (qc *QueryClient) RangeQuery(ctx context.Context, endpoint, authType, authC
 }
 
 // InstantQuery executes a PromQL instant query and returns parsed results.
-func (qc *QueryClient) InstantQuery(ctx context.Context, endpoint, authType, authConfig, query string) ([]QueryResult, error) {
+// If queryTime is zero, the server uses "now".
+func (qc *QueryClient) InstantQuery(ctx context.Context, endpoint, authType, authConfig, query string, queryTime time.Time) ([]QueryResult, error) {
 	apiURL := strings.TrimRight(endpoint, "/") + "/api/v1/query"
 
 	form := url.Values{}
 	form.Set("query", query)
+	if !queryTime.IsZero() {
+		form.Set("time", strconv.FormatFloat(float64(queryTime.UnixMilli())/1000, 'f', -1, 64))
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, strings.NewReader(form.Encode()))
 	if err != nil {

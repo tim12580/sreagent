@@ -12,10 +12,23 @@ const { t } = useI18n()
 const datasources = ref<DataSource[]>([])
 const selectedDsId = ref<number | null>(null)
 const expression = ref('')
+const queryTime = ref(0) // 0 = now
 const loading = ref(false)
 const pageLoading = ref(true)
 const queryResult = ref<QueryResponse | null>(null)
 const queryError = ref('')
+
+const timeOptions = [
+  { label: 'now', value: 0 },
+  { label: '5m ago', value: -300 },
+  { label: '15m ago', value: -900 },
+  { label: '30m ago', value: -1800 },
+  { label: '1h ago', value: -3600 },
+  { label: '3h ago', value: -10800 },
+  { label: '6h ago', value: -21600 },
+  { label: '12h ago', value: -43200 },
+  { label: '1d ago', value: -86400 },
+]
 
 const dsOptions = computed(() =>
   datasources.value.map(ds => ({
@@ -54,6 +67,7 @@ async function handleQuery() {
   try {
     const res = await datasourceApi.query(selectedDsId.value, {
       expression: expression.value,
+      time: queryTime.value === 0 ? 0 : Date.now() / 1000 + queryTime.value,
     })
     queryResult.value = res.data.data
   } catch (err: any) {
@@ -92,6 +106,10 @@ onMounted(fetchDatasources)
               :placeholder="t('datasource.selectDatasource')"
               filterable
             />
+          </n-form-item>
+
+          <n-form-item :label="t('datasource.queryTime')">
+            <n-select v-model:value="queryTime" :options="timeOptions" />
           </n-form-item>
 
           <n-form-item :label="t('datasource.queryExpression')">

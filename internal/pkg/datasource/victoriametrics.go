@@ -78,6 +78,6 @@ func vmVersion(ctx context.Context, base, authType, authConfig string) string {
 
 // VictoriaMetricsInstantQuery executes a MetricsQL instant query.
 // VictoriaMetrics is API-compatible with Prometheus, so we reuse QueryClient.InstantQuery.
-func VictoriaMetricsInstantQuery(ctx context.Context, endpoint, authType, authConfig, expression string) ([]QueryResult, error) {
-	return NewQueryClient().InstantQuery(ctx, endpoint, authType, authConfig, expression)
+func VictoriaMetricsInstantQuery(ctx context.Context, endpoint, authType, authConfig, expression string, queryTime time.Time) ([]QueryResult, error) {
+	return NewQueryClient().InstantQuery(ctx, endpoint, authType, authConfig, expression, queryTime)
 }

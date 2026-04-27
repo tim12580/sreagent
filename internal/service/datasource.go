@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -168,7 +169,7 @@ type QueryDataPoint struct {
 }
 
 // QueryDatasource executes an expression against the given datasource for testing.
-func (s *DataSourceService) QueryDatasource(ctx context.Context, dsID uint, expression string) (*QueryResponse, error) {
+func (s *DataSourceService) QueryDatasource(ctx context.Context, dsID uint, expression string, queryTime time.Time) (*QueryResponse, error) {
 	ds, err := s.repo.GetByID(ctx, dsID)
 	if err != nil {
 		return nil, apperr.ErrDSNotFound
@@ -179,7 +180,7 @@ func (s *DataSourceService) QueryDatasource(ctx context.Context, dsID uint, expr
 
 	switch ds.Type {
 	case model.DSTypePrometheus, model.DSTypeVictoriaMetrics:
-		results, err := qc.InstantQuery(ctx, ds.Endpoint, ds.AuthType, ds.AuthConfig, expression)
+		results, err := qc.InstantQuery(ctx, ds.Endpoint, ds.AuthType, ds.AuthConfig, expression, queryTime)
 		if err != nil {
 			return nil, apperr.WithMessage(apperr.ErrExternalAPI, err.Error())
 		}
