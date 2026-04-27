@@ -454,7 +454,6 @@ async function toggleNotifyConfig(cfg: UserNotifyConfig, enabled: boolean) {
             :component="collapsed ? ChevronForwardOutline : ChevronBackOutline"
             :size="16"
             class="collapse-icon"
-            :class="{ rotated: collapsed }"
           />
           <transition name="fade">
             <span v-if="!collapsed" class="collapse-label">{{ t('header.collapseSidebar') }}</span>
@@ -866,9 +865,6 @@ async function toggleNotifyConfig(cfg: UserNotifyConfig, enabled: boolean) {
 .collapse-icon {
   flex-shrink: 0;
   transition: transform var(--sre-duration-base) var(--sre-ease-spring);
-}
-.collapse-icon.rotated {
-  transform: rotate(180deg);
 }
 .collapse-label {
   font-size: var(--sre-fs-sm);

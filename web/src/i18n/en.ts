@@ -179,6 +179,7 @@ export default {
     queryResult: 'Query Result',
     queryNoResult: 'No results',
     queryExecuted: 'Query executed',
+    noEnabledDatasource: 'No enabled data sources available. Please add and enable a data source first.',
     resultType: 'Result Type',
     seriesCount: 'Series Count',
   },

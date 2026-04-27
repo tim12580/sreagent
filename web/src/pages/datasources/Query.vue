@@ -14,8 +14,10 @@ const datasources = ref<DataSource[]>([])
 const selectedDsId = ref<number | null>(null)
 const expression = ref('')
 const loading = ref(false)
+const fetchLoading = ref(true)
 const queryResult = ref<QueryResponse | null>(null)
 const queryError = ref('')
+const fetchError = ref('')
 
 // Time range for instant query
 const timeRangeOptions = [
@@ -29,10 +31,16 @@ const timeRangeOptions = [
 const timeOffset = ref(0)
 
 async function fetchDatasources() {
+  fetchLoading.value = true
+  fetchError.value = ''
   try {
     const { data } = await datasourceApi.list({ page: 1, page_size: 100 })
     datasources.value = (data.data.list || []).filter(ds => ds.is_enabled)
-  } catch { /* silent */ }
+  } catch (err: any) {
+    fetchError.value = err.message || 'Failed to load datasources'
+  } finally {
+    fetchLoading.value = false
+  }
 }
 
 async function handleQuery() {
@@ -65,47 +73,59 @@ onMounted(fetchDatasources)
   <div class="query-page">
     <PageHeader :title="t('datasource.queryTitle')" :subtitle="t('datasource.querySubtitle')" />
 
+    <!-- Fetch error -->
+    <n-alert v-if="fetchError" type="error" style="margin-bottom: 16px" closable @close="fetchError = ''">
+      {{ fetchError }}
+    </n-alert>
+
+    <!-- No datasources hint -->
+    <n-alert v-if="!fetchLoading && !fetchError && datasources.length === 0" type="warning" style="margin-bottom: 16px">
+      {{ t('datasource.noEnabledDatasource') }}
+    </n-alert>
+
     <n-card :bordered="false" class="content-card">
-      <n-space vertical :size="12">
-        <n-grid :x-gap="12" :cols="2">
-          <n-gi>
-            <n-select
-              v-model:value="selectedDsId"
-              :options="datasources.map(ds => ({ label: `${ds.name} (${ds.type})`, value: ds.id }))"
-              :placeholder="t('datasource.selectDatasource')"
-              filterable
-            />
-          </n-gi>
-          <n-gi>
-            <n-select
-              v-model:value="timeOffset"
-              :options="timeRangeOptions"
-              :placeholder="t('datasource.queryTime')"
-            />
-          </n-gi>
-        </n-grid>
+      <n-spin :show="fetchLoading">
+        <n-space vertical :size="12">
+          <n-grid :x-gap="12" :cols="2">
+            <n-gi>
+              <n-select
+                v-model:value="selectedDsId"
+                :options="datasources.map(ds => ({ label: `${ds.name} (${ds.type})`, value: ds.id }))"
+                :placeholder="t('datasource.selectDatasource')"
+                filterable
+              />
+            </n-gi>
+            <n-gi>
+              <n-select
+                v-model:value="timeOffset"
+                :options="timeRangeOptions"
+                :placeholder="t('datasource.queryTime')"
+              />
+            </n-gi>
+          </n-grid>
 
-        <n-input
-          v-model:value="expression"
-          type="textarea"
-          :placeholder="t('datasource.queryPlaceholder')"
-          :rows="3"
-          @keyup.ctrl.enter="handleQuery"
-        />
+          <n-input
+            v-model:value="expression"
+            type="textarea"
+            :placeholder="t('datasource.queryPlaceholder')"
+            :rows="3"
+            @keyup.ctrl.enter="handleQuery"
+          />
 
-        <n-button
-          type="primary"
-          :loading="loading"
-          @click="handleQuery"
-          :disabled="!selectedDsId || !expression.trim()"
-        >
-          <template #icon><n-icon :component="PlayOutline" /></template>
-          {{ t('datasource.executeQuery') }}
-        </n-button>
-      </n-space>
+          <n-button
+            type="primary"
+            :loading="loading"
+            @click="handleQuery"
+            :disabled="!selectedDsId || !expression.trim()"
+          >
+            <template #icon><n-icon :component="PlayOutline" /></template>
+            {{ t('datasource.executeQuery') }}
+          </n-button>
+        </n-space>
+      </n-spin>
     </n-card>
 
-    <!-- Error -->
+    <!-- Query error -->
     <n-alert v-if="queryError" type="error" style="margin-top: 16px" closable @close="queryError = ''">
       {{ queryError }}
     </n-alert>

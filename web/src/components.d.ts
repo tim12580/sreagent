@@ -12,6 +12,7 @@ declare module 'vue' {
     CommandPalette: typeof import('./components/common/CommandPalette.vue')['default']
     GlowCard: typeof import('./components/common/GlowCard.vue')['default']
     KVEditor: typeof import('./components/common/KVEditor.vue')['default']
+    LabelMatcherEditor: typeof import('./components/common/LabelMatcherEditor.vue')['default']
     NAlert: typeof import('naive-ui')['NAlert']
     NAvatar: typeof import('naive-ui')['NAvatar']
     NBadge: typeof import('naive-ui')['NBadge']
@@ -67,9 +68,5 @@ declare module 'vue' {
     PageHeader: typeof import('./components/common/PageHeader.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
-    SeverityTag: typeof import('./components/common/SeverityTag.vue')['default']
-    SkeletonCard: typeof import('./components/common/SkeletonCard.vue')['default']
-    SpotlightCursor: typeof import('./components/common/SpotlightCursor.vue')['default']
-    StatusTag: typeof import('./components/common/StatusTag.vue')['default']
   }
 }
