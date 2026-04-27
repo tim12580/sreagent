@@ -48,6 +48,7 @@ function toggleCollapsed() {
 }
 
 const { open: openPalette } = useCommandPalette()
+const appVersion = __APP_VERSION__
 
 const isDark = inject<Ref<boolean>>('isDark', ref(true))
 const toggleTheme = inject<() => void>('toggleTheme', () => {})
@@ -460,7 +461,7 @@ async function toggleNotifyConfig(cfg: UserNotifyConfig, enabled: boolean) {
           </transition>
         </div>
         <transition name="fade">
-          <div v-if="!collapsed" class="sider-version">v{{ __APP_VERSION__ }}</div>
+          <div v-if="!collapsed" class="sider-version">v{{ appVersion }}</div>
         </transition>
       </div>
     </n-layout-sider>
