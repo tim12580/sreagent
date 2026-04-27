@@ -132,10 +132,12 @@ NotifyRule / MuteRule / InhibitionRule / SubscribeRule ── match labels → N
 ### 版本发布（发版 checklist）
 1. 更新 CLAUDE.md 头部版本号
 2. 更新 MODULES.md 头部版本号
-3. 确认所有新增迁移文件有对应的 down.sql
-4. CHANGELOG 该版本条目列出所有迁移文件编号
-5. `go build` + `go test` 通过
-6. 标注该版本依赖的最低迁移版本（方便回滚判断）
+3. 同步 `web/package.json` 的 version 字段（侧边栏版本号从此读取）
+4. 确认所有新增迁移文件有对应的 down.sql
+5. CHANGELOG 该版本条目列出所有迁移文件编号
+6. `go build` + `go test` 通过
+7. `cd web && npx vite build` 通过
+8. 标注该版本依赖的最低迁移版本（方便回滚判断）
 
 ## 对话规范（自动生效）
 

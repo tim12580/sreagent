@@ -429,17 +429,6 @@ async function toggleNotifyConfig(cfg: UserNotifyConfig, enabled: boolean) {
         </transition>
       </div>
 
-      <!-- Collapse / Expand chevron — floats on the right edge of the sider,
-           always visible (no hover reveal) so users never have to hunt for it. -->
-      <div
-        class="sider-collapse-btn"
-        :class="{ collapsed }"
-        :title="collapsed ? t('header.expandSidebar') : t('header.collapseSidebar')"
-        @click="toggleCollapsed"
-      >
-        <n-icon :component="collapsed ? ChevronForwardOutline : ChevronBackOutline" :size="14" />
-      </div>
-
       <!-- Navigation menu -->
       <n-menu
         class="sre-menu"
@@ -452,25 +441,26 @@ async function toggleNotifyConfig(cfg: UserNotifyConfig, enabled: boolean) {
         @update:value="handleMenuClick"
       />
 
-      <!-- Bottom: ⌘K trigger + version -->
+      <!-- Bottom: collapse toggle + version -->
       <div class="sider-bottom">
         <div
-          class="sider-cmd-btn"
+          class="sider-collapse-toggle"
           :class="{ collapsed }"
-          @click="openPalette"
-          :title="collapsed ? '⌘K' : undefined"
+          :title="collapsed ? t('header.expandSidebar') : t('header.collapseSidebar')"
+          @click="toggleCollapsed"
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="cmd-icon">
-            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-          </svg>
+          <n-icon
+            :component="collapsed ? ChevronForwardOutline : ChevronBackOutline"
+            :size="16"
+            class="collapse-icon"
+            :class="{ rotated: collapsed }"
+          />
           <transition name="fade">
-            <span v-if="!collapsed" class="sider-cmd-label">
-              Search <kbd>⌘K</kbd>
-            </span>
+            <span v-if="!collapsed" class="collapse-label">{{ t('header.collapseSidebar') }}</span>
           </transition>
         </div>
         <transition name="fade">
-          <div v-if="!collapsed" class="sider-version">v1.8.0</div>
+          <div v-if="!collapsed" class="sider-version">v{{ __APP_VERSION__ }}</div>
         </transition>
       </div>
     </n-layout-sider>
@@ -797,33 +787,6 @@ async function toggleNotifyConfig(cfg: UserNotifyConfig, enabled: boolean) {
 /* Collapse / expand chevron — floats on the outer edge of the sider,
    straddling the border so it reads as an attached "tab". Always visible,
    no hover-reveal, consistent with VSCode / Linear / Notion patterns. */
-.sider-collapse-btn {
-  position: absolute;
-  top: 72px;
-  right: -12px;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--sre-bg-card);
-  border: 1px solid var(--sre-border);
-  color: var(--sre-text-secondary);
-  cursor: pointer;
-  z-index: 20;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-  transition: background var(--sre-duration-fast) var(--sre-ease-out),
-              border-color var(--sre-duration-fast) var(--sre-ease-out),
-              color var(--sre-duration-fast) var(--sre-ease-out),
-              transform var(--sre-duration-base) var(--sre-ease-out);
-}
-.sider-collapse-btn:hover {
-  background: var(--sre-primary-soft);
-  border-color: var(--sre-primary-ring);
-  color: var(--sre-primary);
-  transform: scale(1.08);
-}
 .logo-mark {
   width: 32px;
   height: 32px;
@@ -878,7 +841,7 @@ async function toggleNotifyConfig(cfg: UserNotifyConfig, enabled: boolean) {
   z-index: 1;
 }
 
-.sider-cmd-btn {
+.sider-collapse-toggle {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -886,47 +849,38 @@ async function toggleNotifyConfig(cfg: UserNotifyConfig, enabled: boolean) {
   border-radius: var(--sre-radius-md);
   cursor: pointer;
   transition: background var(--sre-duration-base) var(--sre-ease-out),
-              box-shadow var(--sre-duration-base) var(--sre-ease-out);
+              color var(--sre-duration-base) var(--sre-ease-out);
   color: var(--sre-text-tertiary);
-  border: 1px solid var(--sre-border);
-  background: var(--sre-bg-sunken);
   user-select: none;
   white-space: nowrap;
   overflow: hidden;
 }
-.sider-cmd-btn.collapsed {
+.sider-collapse-toggle.collapsed {
   justify-content: center;
 }
-.sider-cmd-btn:hover {
+.sider-collapse-toggle:hover {
   background: var(--sre-primary-soft);
-  border-color: var(--sre-primary-ring);
   color: var(--sre-primary);
 }
-.cmd-icon { flex-shrink: 0; }
-.sider-cmd-label {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
+.collapse-icon {
+  flex-shrink: 0;
+  transition: transform var(--sre-duration-base) var(--sre-ease-spring);
+}
+.collapse-icon.rotated {
+  transform: rotate(180deg);
+}
+.collapse-label {
   font-size: var(--sre-fs-sm);
   font-weight: var(--sre-fw-medium);
-}
-.sider-cmd-label kbd {
-  font-size: var(--sre-fs-2xs);
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: var(--sre-bg-elevated);
-  border: 1px solid var(--sre-border-strong);
-  color: var(--sre-text-muted);
-  font-family: var(--sre-font-mono);
 }
 
 .sider-version {
   text-align: center;
-  font-size: var(--sre-fs-2xs);
-  color: var(--sre-text-muted);
+  font-size: var(--sre-fs-xs);
+  color: var(--sre-text-secondary);
   letter-spacing: 0.05em;
-  padding-bottom: 2px;
+  padding: 4px 0 2px;
+  opacity: 0.7;
 }
 
 /* ⌘K trigger in header */
