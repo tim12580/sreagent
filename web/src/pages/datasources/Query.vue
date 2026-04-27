@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { datasourceApi } from '@/api'
 import type { DataSource, QueryResponse } from '@/types'
-import PageHeader from '@/components/common/PageHeader.vue'
 
 const message = useMessage()
 const { t } = useI18n()
@@ -12,9 +11,8 @@ const { t } = useI18n()
 const datasources = ref<DataSource[]>([])
 const selectedDsId = ref<number | null>(null)
 const expression = ref('')
-const queryTime = ref(0) // 0 = now
+const queryTime = ref(0)
 const loading = ref(false)
-const pageLoading = ref(true)
 const queryResult = ref<QueryResponse | null>(null)
 const queryError = ref('')
 
@@ -30,22 +28,12 @@ const timeOptions = [
   { label: '1d ago', value: -86400 },
 ]
 
-const dsOptions = computed(() =>
-  datasources.value.map(ds => ({
-    label: `${ds.name} (${ds.type})`,
-    value: ds.id,
-  }))
-)
-
 async function fetchDatasources() {
-  pageLoading.value = true
   try {
     const res = await datasourceApi.list({ page: 1, page_size: 100 })
-    datasources.value = (res.data.data.list || []).filter(ds => ds.is_enabled)
+    datasources.value = (res.data.data.list || []).filter((ds: DataSource) => ds.is_enabled)
   } catch (err: any) {
     message.error(err.message || 'Failed to load datasources')
-  } finally {
-    pageLoading.value = false
   }
 }
 
@@ -84,95 +72,103 @@ onMounted(fetchDatasources)
 
 <template>
   <div class="query-page">
-    <PageHeader :title="t('datasource.queryTitle')" :subtitle="t('datasource.querySubtitle')" />
+    <h2 class="page-title">{{ t('datasource.queryTitle') }}</h2>
+    <p class="page-subtitle">{{ t('datasource.querySubtitle') }}</p>
 
-    <n-spin :show="pageLoading">
-      <n-card :bordered="false" class="content-card">
-        <div class="query-form">
-          <div class="query-row">
-            <div class="query-field">
-              <label class="field-label">{{ t('datasource.selectDatasource') }}</label>
-              <n-select
-                v-model:value="selectedDsId"
-                :options="dsOptions"
-                :placeholder="t('datasource.selectDatasource')"
-                filterable
-              />
-            </div>
-            <div class="query-field">
-              <label class="field-label">{{ t('datasource.queryTime') }}</label>
-              <n-select v-model:value="queryTime" :options="timeOptions" />
-            </div>
-          </div>
-
-          <div class="query-field">
-            <label class="field-label">{{ t('datasource.queryExpression') }}</label>
-            <n-input
-              v-model:value="expression"
-              type="textarea"
-              :placeholder="t('datasource.queryPlaceholder')"
-              :rows="4"
-              @keyup.ctrl.enter="handleQuery"
-            />
-          </div>
-
-          <n-button
-            type="primary"
-            :loading="loading"
-            :disabled="!selectedDsId || !expression.trim()"
-            @click="handleQuery"
-          >
-            {{ t('datasource.executeQuery') }}
-          </n-button>
+    <div class="query-card">
+      <div class="query-row">
+        <div class="query-field">
+          <label>{{ t('datasource.selectDatasource') }}</label>
+          <select v-model="selectedDsId" class="form-select">
+            <option :value="null" disabled>{{ t('datasource.selectDatasource') }}</option>
+            <option v-for="ds in datasources" :key="ds.id" :value="ds.id">
+              {{ ds.name }} ({{ ds.type }})
+            </option>
+          </select>
         </div>
-      </n-card>
-    </n-spin>
+        <div class="query-field">
+          <label>{{ t('datasource.queryTime') }}</label>
+          <select v-model="queryTime" class="form-select">
+            <option v-for="opt in timeOptions" :key="opt.value" :value="opt.value">
+              {{ opt.label }}
+            </option>
+          </select>
+        </div>
+      </div>
 
-    <n-alert v-if="queryError" type="error" style="margin-top: 16px" closable @close="queryError = ''">
+      <div class="query-field">
+        <label>{{ t('datasource.queryExpression') }}</label>
+        <textarea
+          v-model="expression"
+          class="form-textarea"
+          :placeholder="t('datasource.queryPlaceholder')"
+          rows="4"
+          @keyup.ctrl.enter="handleQuery"
+        ></textarea>
+      </div>
+
+      <button
+        class="btn-primary"
+        :disabled="loading || !selectedDsId || !expression.trim()"
+        @click="handleQuery"
+      >
+        {{ loading ? '...' : t('datasource.executeQuery') }}
+      </button>
+    </div>
+
+    <div v-if="queryError" class="error-box">
       {{ queryError }}
-    </n-alert>
+    </div>
 
-    <n-card v-if="queryResult" :bordered="false" class="content-card" style="margin-top: 16px">
-      <template #header>
-        <n-space align="center">
-          <span>{{ t('datasource.queryResult') }}</span>
-          <n-tag size="small" type="info">{{ queryResult.result_type }}</n-tag>
-          <n-tag size="small">{{ queryResult.series?.length ?? queryResult.raw_count ?? 0 }} series</n-tag>
-        </n-space>
-      </template>
+    <div v-if="queryResult" class="query-card" style="margin-top: 16px">
+      <div class="result-header">
+        <span>{{ t('datasource.queryResult') }}</span>
+        <span class="tag">{{ queryResult.result_type }}</span>
+        <span class="tag">{{ queryResult.series?.length ?? queryResult.raw_count ?? 0 }} series</span>
+      </div>
 
-      <template v-if="!queryResult.series || queryResult.series.length === 0">
-        <n-empty :description="t('datasource.queryNoResult')" />
-      </template>
+      <div v-if="!queryResult.series || queryResult.series.length === 0" class="empty-box">
+        {{ t('datasource.queryNoResult') }}
+      </div>
 
-      <template v-else-if="queryResult.result_type === 'vector' || queryResult.result_type === 'matrix'">
-        <n-data-table
-          :columns="[
-            { title: 'Labels', key: 'labels', minWidth: 200, ellipsis: { tooltip: true } },
-            { title: 'Values', key: 'values', minWidth: 300 },
-          ]"
-          :data="queryResult.series.map((s, i) => ({
-            key: i,
-            labels: Object.entries(s.labels).map(([k, v]) => `${k}=${v}`).join(', '),
-            values: s.values.map(v => `${formatTimestamp(v.ts)}: ${v.value}`).join('\n'),
-          }))"
-          :max-height="400"
-          size="small"
-        />
-      </template>
+      <table v-else-if="queryResult.result_type === 'vector' || queryResult.result_type === 'matrix'" class="result-table">
+        <thead>
+          <tr>
+            <th>Labels</th>
+            <th>Values</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(s, i) in queryResult.series" :key="i">
+            <td>{{ Object.entries(s.labels).map(([k, v]) => `${k}=${v}`).join(', ') }}</td>
+            <td>{{ s.values.map(v => `${formatTimestamp(v.ts)}: ${v.value}`).join('\n') }}</td>
+          </tr>
+        </tbody>
+      </table>
 
-      <template v-else>
-        <n-code :code="JSON.stringify(queryResult.series, null, 2)" language="json" show-line-numbers />
-      </template>
-    </n-card>
+      <pre v-else class="json-block">{{ JSON.stringify(queryResult.series, null, 2) }}</pre>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.query-page { max-width: 1400px; }
-.content-card { border-radius: 12px; }
-.query-form { display: flex; flex-direction: column; gap: 16px; }
-.query-row { display: flex; gap: 12px; }
-.query-field { flex: 1; }
-.field-label { display: block; margin-bottom: 4px; font-size: 13px; color: #666; }
+.query-page { max-width: 1400px; padding: 20px; }
+.page-title { font-size: 22px; font-weight: 600; margin: 0 0 4px; }
+.page-subtitle { font-size: 13px; color: #666; margin: 0 0 20px; }
+.query-card { background: #fff; border-radius: 12px; padding: 20px; }
+.query-row { display: flex; gap: 12px; margin-bottom: 16px; }
+.query-field { flex: 1; margin-bottom: 12px; }
+.query-field label { display: block; margin-bottom: 4px; font-size: 13px; color: #666; }
+.form-select { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+.form-textarea { width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; resize: vertical; box-sizing: border-box; }
+.btn-primary { padding: 8px 20px; background: #18a058; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.error-box { margin-top: 16px; padding: 12px; background: #fff2f0; border: 1px solid #ffccc7; border-radius: 6px; color: #cf1322; }
+.result-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-weight: 600; }
+.tag { font-size: 12px; padding: 2px 8px; background: #f0f0f0; border-radius: 4px; font-weight: normal; }
+.result-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.result-table th, .result-table td { padding: 8px; border: 1px solid #eee; text-align: left; }
+.result-table th { background: #fafafa; }
+.empty-box { padding: 40px; text-align: center; color: #999; }
+.json-block { background: #f5f5f5; padding: 12px; border-radius: 6px; overflow: auto; font-size: 13px; }
 </style>
