@@ -4,6 +4,12 @@
 
 ---
 
+## [v1.16.8] - 2026-04-29
+
+### Changed
+- Alert Detail 页面硬编码颜色全部替换为 CSS 自定义属性（banner、timeline、lifecycle、labels、annotations、responders）
+- PanelCard Stat 面板支持阈值颜色：`panel.options.thresholds` 数组 `[{ value, color }]` 自动根据当前值匹配颜色
+
 ## [v1.16.7] - 2026-04-29
 
 ### Removed

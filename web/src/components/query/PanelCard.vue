@@ -81,6 +81,20 @@ const statValue = computed(() => {
   return null
 })
 
+const statColor = computed(() => {
+  const val = statValue.value
+  const thresholds: { value: number; color: string }[] | undefined = props.panel.options?.thresholds
+  if (val == null || !thresholds?.length) {
+    return props.panel.options?.color || 'var(--sre-text-primary)'
+  }
+  const sorted = [...thresholds].sort((a, b) => a.value - b.value)
+  let color = props.panel.options?.color || sorted[0]?.color || 'var(--sre-text-primary)'
+  for (const t of sorted) {
+    if (val >= t.value) color = t.color
+  }
+  return color
+})
+
 const statSeriesName = computed(() => {
   if (!series.value.length) return ''
   return series.value[0].labels?.__panel_name || series.value[0].labels?.__name__ || 'value'
@@ -198,7 +212,7 @@ onMounted(fetchData)
 
       <!-- Stat -->
       <template v-else-if="panel.type === 'stat'">
-        <div class="stat-display" :style="{ color: panel.options?.color || 'var(--sre-text-primary)' }">
+        <div class="stat-display" :style="{ color: statColor }">
           <div class="stat-value">{{ statValue?.toFixed(2) ?? '-' }}</div>
           <div class="stat-label">{{ statSeriesName }}</div>
         </div>

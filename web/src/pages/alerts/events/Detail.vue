@@ -140,16 +140,16 @@ function getTimelineIcon(action: string) {
 
 function getTimelineColor(action: string): string {
   switch (action) {
-    case 'created':      return '#e88080'
-    case 'acknowledged': return '#f2c97d'
-    case 'assigned':     return '#70c0e8'
-    case 'resolved':     return '#18a058'
-    case 'closed':       return '#666'
-    case 'commented':    return '#a855f7'
-    case 'silenced':     return '#a855f7'
-    case 'escalated':    return '#e88080'
-    case 'notified':     return '#70c0e8'
-    default:             return '#888'
+    case 'created':      return '#ef4444'
+    case 'acknowledged': return '#f59e0b'
+    case 'assigned':     return '#3b82f6'
+    case 'resolved':     return '#10b981'
+    case 'closed':       return '#666666'
+    case 'commented':    return '#a78bfa'
+    case 'silenced':     return '#a78bfa'
+    case 'escalated':    return '#ef4444'
+    case 'notified':     return '#3b82f6'
+    default:             return '#888888'
   }
 }
 
@@ -463,7 +463,7 @@ async function generateAIReport() {
               <div class="responder-time">{{ formatTime(event.acked_at) }}</div>
             </div>
             <div class="responder-row" v-if="event.assigned_to_user">
-              <div class="responder-avatar" style="background: linear-gradient(135deg,#70c0e8,#3498db)">
+              <div class="responder-avatar" style="background: var(--sre-gradient-calm)">
                 {{ (event.assigned_to_user.display_name || '?').charAt(0).toUpperCase() }}
               </div>
               <div class="responder-info">
@@ -472,7 +472,7 @@ async function generateAIReport() {
               </div>
             </div>
             <div class="responder-row" v-if="event.oncall_user">
-              <div class="responder-avatar" style="background: linear-gradient(135deg,#a855f7,#7c3aed)">
+              <div class="responder-avatar" style="background: linear-gradient(135deg, var(--sre-aurora-3), #7c3aed)">
                 {{ (event.oncall_user.display_name || '?').charAt(0).toUpperCase() }}
               </div>
               <div class="responder-info">
@@ -523,7 +523,7 @@ async function generateAIReport() {
             </div>
             <div class="details-row" v-if="event.silenced_until">
               <span class="details-label">{{ t('alert.silence') }}</span>
-              <span class="details-value" style="color:#a855f7">{{ formatTime(event.silenced_until) }}</span>
+              <span class="details-value" style="color: var(--sre-aurora-3)">{{ formatTime(event.silenced_until) }}</span>
             </div>
             <div class="details-row">
               <span class="details-label">{{ t('alert.fingerprint') }}</span>
@@ -639,16 +639,16 @@ async function generateAIReport() {
   overflow: hidden;
 }
 .banner--critical {
-  background: linear-gradient(135deg, rgba(232,128,128,0.12) 0%, rgba(192,57,43,0.06) 100%);
-  border: 1px solid rgba(232,128,128,0.25);
+  background: linear-gradient(135deg, var(--sre-critical-soft) 0%, rgba(239,68,68,0.06) 100%);
+  border: 1px solid rgba(239,68,68,0.25);
 }
 .banner--warning {
-  background: linear-gradient(135deg, rgba(242,201,125,0.12) 0%, rgba(230,126,34,0.06) 100%);
-  border: 1px solid rgba(242,201,125,0.25);
+  background: linear-gradient(135deg, var(--sre-warning-soft) 0%, rgba(245,158,11,0.06) 100%);
+  border: 1px solid rgba(245,158,11,0.25);
 }
 .banner--info {
-  background: linear-gradient(135deg, rgba(112,192,232,0.1) 0%, rgba(52,152,219,0.04) 100%);
-  border: 1px solid rgba(112,192,232,0.2);
+  background: linear-gradient(135deg, var(--sre-info-soft) 0%, rgba(59,130,246,0.04) 100%);
+  border: 1px solid rgba(59,130,246,0.2);
 }
 
 .back-btn {
@@ -673,9 +673,9 @@ async function generateAIReport() {
   justify-content: center;
   flex-shrink: 0;
 }
-.banner--critical .banner-icon-wrap { background: rgba(232,128,128,0.15); color: #e88080; }
-.banner--warning  .banner-icon-wrap { background: rgba(242,201,125,0.15); color: #f2c97d; }
-.banner--info     .banner-icon-wrap { background: rgba(112,192,232,0.15); color: #70c0e8; }
+.banner--critical .banner-icon-wrap { background: var(--sre-critical-soft); color: var(--sre-critical); }
+.banner--warning  .banner-icon-wrap { background: var(--sre-warning-soft); color: var(--sre-warning); }
+.banner--info     .banner-icon-wrap { background: var(--sre-info-soft); color: var(--sre-info); }
 
 .banner-text { flex: 1; min-width: 0; }
 
@@ -706,7 +706,7 @@ async function generateAIReport() {
   border-radius: 6px;
   font-weight: 500;
 }
-.fire-count { color: #e88080; background: rgba(232,128,128,0.1); }
+.fire-count { color: var(--sre-critical); background: var(--sre-critical-soft); }
 
 .banner-actions {
   display: flex;
@@ -746,15 +746,15 @@ async function generateAIReport() {
   border: 2px solid rgba(128,128,128,0.3);
   transition: all 0.2s;
 }
-.step--done .step-dot { background: #18a058; border-color: rgba(24,160,88,0.3); }
+.step--done .step-dot { background: var(--sre-success); border-color: rgba(16,185,129,0.3); }
 .step--active .step-dot {
-  background: #18a058;
-  box-shadow: 0 0 0 4px rgba(24,160,88,0.2);
+  background: var(--sre-success);
+  box-shadow: 0 0 0 4px rgba(16,185,129,0.2);
   animation: step-pulse 2s ease-in-out infinite;
 }
 @keyframes step-pulse {
-  0%, 100% { box-shadow: 0 0 0 3px rgba(24,160,88,0.2); }
-  50% { box-shadow: 0 0 0 6px rgba(24,160,88,0.1); }
+  0%, 100% { box-shadow: 0 0 0 3px rgba(16,185,129,0.2); }
+  50% { box-shadow: 0 0 0 6px rgba(16,185,129,0.1); }
 }
 .step-label { font-size: 11px; color: var(--sre-text-secondary); font-weight: 500; }
 .step-time  { font-size: 10px; color: var(--sre-text-secondary); opacity: 0.7; text-align: center; }
@@ -766,7 +766,7 @@ async function generateAIReport() {
   margin-bottom: 28px;
   transition: background 0.2s;
 }
-.lifecycle-connector.connector--done { background: rgba(24,160,88,0.4); }
+.lifecycle-connector.connector--done { background: rgba(16,185,129,0.4); }
 
 /* ═══ PANEL CARDS ═══ */
 .panel-card {
@@ -814,8 +814,8 @@ async function generateAIReport() {
   max-width: 320px;
 }
 .label-item:hover {
-  border-color: rgba(24,160,88,0.35);
-  box-shadow: 0 0 0 2px rgba(24,160,88,0.08);
+  border-color: var(--sre-primary-ring);
+  box-shadow: 0 0 0 2px var(--sre-primary-soft);
 }
 .label-key {
   background: rgba(128,128,128,0.1);
@@ -830,7 +830,7 @@ async function generateAIReport() {
   font-size: 10px;
 }
 .label-val {
-  background: rgba(24,160,88,0.08);
+  background: var(--sre-primary-soft);
   padding: 4px 7px;
   color: var(--sre-text-primary);
   overflow: hidden;
@@ -840,7 +840,7 @@ async function generateAIReport() {
 }
 .label-copy-icon {
   padding: 4px 5px 4px 3px;
-  background: rgba(24,160,88,0.08);
+  background: var(--sre-primary-soft);
   color: var(--sre-text-secondary);
   opacity: 0;
   transition: opacity 0.15s;
@@ -853,7 +853,7 @@ async function generateAIReport() {
   padding: 10px 12px;
   background: rgba(128,128,128,0.05);
   border-radius: 8px;
-  border-left: 3px solid rgba(112,192,232,0.4);
+  border-left: 3px solid var(--sre-info);
 }
 .annotation-key {
   font-size: 11px;
@@ -959,7 +959,7 @@ async function generateAIReport() {
   width: 34px;
   height: 34px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #18a058, #36ad6a);
+  background: var(--sre-gradient-brand);
   color: #fff;
   font-size: 14px;
   font-weight: 700;
@@ -992,7 +992,7 @@ async function generateAIReport() {
   flex: 1;
   word-break: break-all;
 }
-.fire-count-val { color: #e88080; font-weight: 700; font-size: 14px; }
+.fire-count-val { color: var(--sre-critical); font-weight: 700; font-size: 14px; }
 .fp-code {
   font-family: 'SF Mono', 'Fira Code', monospace;
   font-size: 11px;
@@ -1003,7 +1003,7 @@ async function generateAIReport() {
   cursor: pointer;
   flex: 1;
 }
-.fp-code:hover { color: var(--sre-primary); background: rgba(24,160,88,0.1); }
+.fp-code:hover { color: var(--sre-primary); background: var(--sre-primary-soft); }
 .details-link { color: var(--sre-info); font-size: 12px; text-decoration: none; }
 .details-link:hover { text-decoration: underline; }
 
