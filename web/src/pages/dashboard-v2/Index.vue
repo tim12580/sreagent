@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { h, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { NButton, NDataTable, NInput, NSpace, NPopconfirm, useMessage } from 'naive-ui'
+import { NButton, NDataTable, NInput, NSpace, NPopconfirm } from 'naive-ui'
+import { useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { dashboardV2Api } from '@/api'
 import type { DashboardV2 } from '@/types/dashboard'
+import PageHeader from '@/components/common/PageHeader.vue'
+import { AddOutline } from '@vicons/ionicons5'
 
 const router = useRouter()
 const message = useMessage()
@@ -17,14 +20,32 @@ const page = ref(1)
 const pageSize = ref(20)
 
 const columns = [
-  { title: 'Name', key: 'name', ellipsis: { tooltip: true } },
-  { title: 'Description', key: 'description', ellipsis: { tooltip: true } },
   {
-    title: 'Actions',
-    key: 'actions',
-    width: 200,
+    title: () => t('common.name'),
+    key: 'name',
+    ellipsis: { tooltip: true },
     render(row: DashboardV2) {
-      return row.id
+      return h('a', {
+        class: 'dash-link',
+        onClick: () => handleEdit(row.id),
+      }, row.name)
+    },
+  },
+  { title: () => t('common.description'), key: 'description', ellipsis: { tooltip: true } },
+  {
+    title: () => t('common.actions'),
+    key: 'actions',
+    width: 160,
+    render(row: DashboardV2) {
+      return h(NSpace, { size: 4 }, {
+        default: () => [
+          h(NButton, { size: 'tiny', quaternary: true, onClick: () => handleEdit(row.id) }, { default: () => t('common.edit') }),
+          h(NPopconfirm, { onPositiveClick: () => handleDelete(row.id) }, {
+            trigger: () => h(NButton, { size: 'tiny', quaternary: true, type: 'error' }, { default: () => t('common.delete') }),
+            default: () => t('common.confirmDelete'),
+          }),
+        ],
+      })
     },
   },
 ]
@@ -36,7 +57,7 @@ async function fetchList() {
     list.value = res.data.data.list || []
     total.value = res.data.data.total || 0
   } catch (err: any) {
-    message.error(err.message || 'Failed to load dashboards')
+    message.error(err.message || t('common.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -45,14 +66,14 @@ async function fetchList() {
 async function handleDelete(id: number) {
   try {
     await dashboardV2Api.delete(id)
-    message.success('Deleted')
+    message.success(t('dashboardV2.deleted'))
     fetchList()
   } catch (err: any) {
-    message.error(err.message || 'Delete failed')
+    message.error(err.message || t('common.deleteFailed'))
   }
 }
 
-function handleView(id: number) {
+function handleEdit(id: number) {
   router.push({ name: 'DashboardV2View', params: { id } })
 }
 
@@ -60,16 +81,24 @@ onMounted(fetchList)
 </script>
 
 <template>
-  <div style="padding: 20px">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px">
-      <h2 style="margin: 0; font-size: 22px; font-weight: 600">Dashboards</h2>
-      <NSpace>
-        <NInput v-model:value="search" placeholder="Search..." clearable style="width: 200px" @update:value="fetchList" />
+  <div class="dash-list-page">
+    <PageHeader :title="t('dashboardV2.title')" :subtitle="t('dashboardV2.subtitle')">
+      <template #actions>
+        <NInput
+          v-model:value="search"
+          :placeholder="t('common.search')"
+          clearable
+          style="width: 200px"
+          @update:value="fetchList"
+        />
         <NButton type="primary" @click="router.push({ name: 'DashboardV2View', params: { id: 'new' } })">
-          + New Dashboard
+          <template #icon>
+            <AddOutline />
+          </template>
+          {{ t('dashboardV2.newDashboard') }}
         </NButton>
-      </NSpace>
-    </div>
+      </template>
+    </PageHeader>
 
     <NDataTable
       :columns="columns"
@@ -79,10 +108,28 @@ onMounted(fetchList)
       :row-key="(row: DashboardV2) => row.id"
     >
       <template #empty>
-        <div style="padding: 40px; text-align: center; color: #999">
-          No dashboards yet. Create one to get started.
+        <div class="empty-state">
+          {{ t('dashboardV2.emptyHint') }}
         </div>
       </template>
     </NDataTable>
   </div>
 </template>
+
+<style scoped>
+.dash-list-page {
+  max-width: 1400px;
+}
+.dash-link {
+  color: var(--sre-primary);
+  cursor: pointer;
+}
+.dash-link:hover {
+  text-decoration: underline;
+}
+.empty-state {
+  padding: 48px 0;
+  text-align: center;
+  color: var(--sre-text-tertiary);
+}
+</style>

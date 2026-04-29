@@ -66,6 +66,7 @@ declare module 'vue' {
     NUpload: typeof import('naive-ui')['NUpload']
     NUploadDragger: typeof import('naive-ui')['NUploadDragger']
     PageHeader: typeof import('./components/common/PageHeader.vue')['default']
+    PanelCard: typeof import('./components/query/PanelCard.vue')['default']
     PromQLEditor: typeof import('./components/query/PromQLEditor.vue')['default']
     QueryPanel: typeof import('./components/query/QueryPanel.vue')['default']
     QueryResultChart: typeof import('./components/query/QueryResultChart.vue')['default']

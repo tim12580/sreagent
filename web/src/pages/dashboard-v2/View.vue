@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { NButton, NSpace, NInput, useMessage } from 'naive-ui'
+import { NButton, NSpace, NInput, useMessage, NModal, NPopconfirm } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
-import { dashboardV2Api } from '@/api'
+import { dashboardV2Api, datasourceApi } from '@/api'
 import type { DashboardV2, DashboardConfig, PanelConfig, VariableConfig } from '@/types/dashboard'
+import type { DataSource } from '@/types'
 import { useTimeRange } from '@/composables/useTimeRange'
 import { useQueryEngine, createDefaultTarget } from '@/composables/useQueryEngine'
 import { useVariable } from '@/composables/useVariable'
@@ -12,8 +13,8 @@ import TimeRangePicker from '@/components/time/TimeRangePicker.vue'
 import RefreshPicker from '@/components/time/RefreshPicker.vue'
 import QueryPanel from '@/components/query/QueryPanel.vue'
 import QueryResultChart from '@/components/query/QueryResultChart.vue'
-import type { DataSource } from '@/types'
-import { datasourceApi } from '@/api'
+import PanelCard from '@/components/query/PanelCard.vue'
+import { ArrowBackOutline, AddOutline } from '@vicons/ionicons5'
 
 const route = useRoute()
 const router = useRouter()
@@ -55,6 +56,41 @@ const {
 const variableConfig = ref<VariableConfig[]>(config.value.variables || [])
 const { variableList, replaceVariables, setValue, resolveAll } = useVariable(variableConfig, timeRange)
 
+// --- Panel management ---
+const panelToDelete = ref<PanelConfig | null>(null)
+
+function addPanelFromQuery(type: PanelConfig['type'] = 'timeseries') {
+  const activeTargets = targets.value.filter(t => t.enabled && t.datasourceId && t.expression?.trim())
+  if (!activeTargets.length) {
+    message.warning(t('dashboardV2.noQueryToAdd') || 'Enter a query first')
+    return
+  }
+  const panel: PanelConfig = {
+    id: `panel-${Date.now()}`,
+    title: `Panel ${config.value.panels.length + 1}`,
+    type,
+    gridPos: { x: 0, y: config.value.panels.length * 6, w: 24, h: 6 },
+    targets: activeTargets.map(t => ({
+      datasourceId: t.datasourceId!,
+      expression: t.expression,
+      legendFormat: t.legendFormat || '',
+    })),
+    options: {},
+  }
+  config.value.panels.push(panel)
+  message.success(t('dashboardV2.panelAdded') || 'Panel added')
+}
+
+function removePanel(id: string) {
+  config.value.panels = config.value.panels.filter(p => p.id !== id)
+}
+
+function updatePanelTitle(id: string, title: string) {
+  const p = config.value.panels.find(p => p.id === id)
+  if (p) p.title = title
+}
+
+// --- Data ---
 async function fetchDatasources() {
   try {
     const res = await datasourceApi.list({ page: 1, page_size: 100 })
@@ -71,11 +107,14 @@ async function fetchDashboard() {
     if (dashboard.value.config) {
       try {
         config.value = JSON.parse(dashboard.value.config)
+        // Ensure panels array exists
+        if (!config.value.panels) config.value.panels = []
+        if (!config.value.layout) config.value.layout = { cols: 24, rowHeight: 100 }
         variableConfig.value = config.value.variables || []
       } catch { /* ignore */ }
     }
   } catch (err: any) {
-    message.error(err.message || 'Failed to load dashboard')
+    message.error(err.message || t('common.loadFailed'))
     router.back()
   } finally {
     loading.value = false
@@ -95,14 +134,14 @@ async function handleSave() {
     }
     if (isNew.value) {
       const res = await dashboardV2Api.create(data)
-      message.success('Dashboard created')
+      message.success(t('dashboardV2.created'))
       router.replace({ name: 'DashboardV2View', params: { id: res.data.data.id } })
     } else if (dashboard.value) {
       await dashboardV2Api.update(dashboard.value.id, data)
-      message.success('Dashboard saved')
+      message.success(t('dashboardV2.saved'))
     }
   } catch (err: any) {
-    message.error(err.message || 'Save failed')
+    message.error(err.message || t('common.saveFailed'))
   } finally {
     saving.value = false
   }
@@ -113,6 +152,9 @@ function handleExecuteSingle(id: string) {
   if (target) executeQuery(target)
 }
 
+const hasPanels = computed(() => config.value.panels.length > 0)
+const hasResults = computed(() => targets.value.some(t => t.series && t.series.length > 0))
+
 onMounted(() => {
   fetchDatasources()
   fetchDashboard()
@@ -121,17 +163,20 @@ onMounted(() => {
 
 <template>
   <div class="dashboard-view">
+    <!-- Header -->
     <div class="dashboard-header">
       <div class="header-left">
         <NButton quaternary size="small" @click="router.push({ name: 'DashboardV2List' })">
-          &larr; Back
+          <template #icon><ArrowBackOutline /></template>
+          {{ t('dashboardV2.back') }}
         </NButton>
         <NInput
           v-if="dashboard || isNew"
-          :value="dashboard?.name || 'Untitled'"
+          :value="dashboard?.name || ''"
+          :placeholder="t('dashboardV2.name')"
           size="small"
-          style="width: 300px"
-          @update:value="(v: string) => { if (dashboard) dashboard.name = v }"
+          style="width: 280px"
+          @update:value="(v: string) => { if (dashboard) dashboard.name = v; else dashboard = { name: v } as any }"
         />
       </div>
       <div class="header-right">
@@ -147,12 +192,12 @@ onMounted(() => {
           @update:value="(v) => autoRefreshInterval = v"
         />
         <NButton type="primary" size="small" :loading="saving" @click="handleSave">
-          Save
+          {{ t('dashboardV2.save') }}
         </NButton>
       </div>
     </div>
 
-    <!-- Variable pickers -->
+    <!-- Variable bar -->
     <div v-if="variableList.length > 0" class="variable-bar">
       <div v-for="v in variableList" :key="v.config.name" class="var-item">
         <label>{{ v.config.label || v.config.name }}</label>
@@ -176,27 +221,65 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Query panel -->
-    <QueryPanel
-      :targets="targets"
-      :datasources="datasources"
-      :loading="globalLoading"
-      @add="addTarget"
-      @remove="removeTarget"
-      @toggle="toggleTarget"
-      @update="updateTarget"
-      @execute="handleExecuteSingle"
-      @execute-all="executeAll"
-    />
-
-    <!-- Results -->
-    <div v-if="targets.some(t => t.series && t.series.length > 0)" class="results-section">
-      <QueryResultChart
-        :targets="targets"
-        :time-range="timeRange"
-        :height="400"
-      />
+    <!-- PANEL GRID -->
+    <div v-if="hasPanels" class="panel-grid">
+      <div
+        v-for="panel in config.panels"
+        :key="panel.id"
+        class="panel-grid-item"
+        :style="{
+          gridColumn: `${(panel.gridPos?.x || 0) + 1} / span ${panel.gridPos?.w || 24}`,
+          gridRow: `${(panel.gridPos?.y || 0) + 1} / span ${panel.gridPos?.h || 6}`,
+        }"
+      >
+        <div class="panel-toolbar">
+          <NInput
+            :value="panel.title"
+            size="tiny"
+            style="width: 180px"
+            @update:value="(v: string) => updatePanelTitle(panel.id, v)"
+          />
+          <NSpace :size="4">
+            <NButton quaternary size="tiny" @click="removePanel(panel.id)">&times;</NButton>
+          </NSpace>
+        </div>
+        <PanelCard :panel="panel" :time-range="timeRange" />
+      </div>
     </div>
+
+    <!-- Empty state -->
+    <div v-if="!hasPanels && !hasResults" class="empty-dashboard">
+      <div class="empty-text">{{ t('dashboardV2.emptyDashboardHint') || 'Add panels from queries below to build your dashboard' }}</div>
+    </div>
+
+    <!-- Query editor (always visible) -->
+    <details class="query-editor-section" :open="!hasPanels">
+      <summary class="query-editor-toggle">{{ t('dashboardV2.queryEditor') || 'Query Editor' }}</summary>
+      <QueryPanel
+        :targets="targets"
+        :datasources="datasources"
+        :loading="globalLoading"
+        @add="addTarget"
+        @remove="removeTarget"
+        @toggle="toggleTarget"
+        @update="updateTarget"
+        @execute="handleExecuteSingle"
+        @execute-all="executeAll"
+      />
+
+      <!-- Query results + add panel buttons -->
+      <div v-if="hasResults" class="query-results-section">
+        <div class="results-actions">
+          <span class="results-label">{{ t('dashboardV2.addAsPanel') || 'Add as panel:' }}</span>
+          <NSpace size="small">
+            <NButton size="tiny" secondary @click="addPanelFromQuery('timeseries')">{{ t('dashboardV2.panelTimeseries') || 'Chart' }}</NButton>
+            <NButton size="tiny" secondary @click="addPanelFromQuery('stat')">{{ t('dashboardV2.panelStat') || 'Stat' }}</NButton>
+            <NButton size="tiny" secondary @click="addPanelFromQuery('table')">{{ t('dashboardV2.panelTable') || 'Table' }}</NButton>
+          </NSpace>
+        </div>
+        <QueryResultChart :targets="targets" :time-range="timeRange" :height="300" />
+      </div>
+    </details>
   </div>
 </template>
 
@@ -221,13 +304,16 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
 }
+
+/* Variable bar */
 .variable-bar {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 16px;
   padding: 12px;
-  background: #fff;
+  background: var(--sre-bg-card);
+  border: 1px solid var(--sre-border);
   border-radius: 8px;
 }
 .var-item {
@@ -237,16 +323,78 @@ onMounted(() => {
 }
 .var-item label {
   font-size: 12px;
-  color: #666;
+  color: var(--sre-text-secondary);
   white-space: nowrap;
 }
 .var-value {
   font-size: 13px;
   padding: 4px 8px;
-  background: #f5f5f5;
+  background: var(--sre-bg-sunken);
   border-radius: 4px;
+  color: var(--sre-text-primary);
 }
-.results-section {
-  margin-top: 16px;
+
+/* Panel grid */
+.panel-grid {
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+  min-height: 0;
+}
+.panel-grid-item {
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+}
+.panel-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  padding: 0 2px;
+}
+
+/* Empty dashboard */
+.empty-dashboard {
+  padding: 60px 0;
+  text-align: center;
+}
+.empty-text {
+  font-size: 14px;
+  color: var(--sre-text-tertiary);
+}
+
+/* Query editor */
+.query-editor-section {
+  border: 1px solid var(--sre-border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  background: var(--sre-bg-sunken);
+}
+.query-editor-toggle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sre-text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+.query-editor-toggle:hover {
+  color: var(--sre-text-primary);
+}
+.query-results-section {
+  margin-top: 12px;
+  border-top: 1px solid var(--sre-border);
+  padding-top: 12px;
+}
+.results-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.results-label {
+  font-size: 12px;
+  color: var(--sre-text-secondary);
 }
 </style>
