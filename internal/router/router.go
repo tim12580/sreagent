@@ -135,6 +135,7 @@ func Setup(cfg *config.Config, handlers *Handlers, logger *zap.Logger) *gin.Engi
 				ds.POST("/:id/health-check", manage, handlers.DataSource.HealthCheck)
 				ds.POST("/:id/query", manage, handlers.DataSource.Query)
 				ds.POST("/:id/query-range", manage, handlers.DataSource.RangeQuery)
+				ds.POST("/:id/log-query", manage, handlers.DataSource.LogQuery)
 				ds.GET("/:id/labels/keys", handlers.DataSource.LabelKeys)
 				ds.GET("/:id/labels/values", handlers.DataSource.LabelValues)
 				ds.GET("/:id/metrics", handlers.DataSource.MetricNames)

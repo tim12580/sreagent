@@ -475,6 +475,9 @@ export interface QueryResponse {
   raw_count: number
 }
 
+// ===== Log Query =====
+export type { LogEntry, LogQueryResponse } from './query'
+
 // ===== Inhibition Rules =====
 export interface InhibitionRule {
   id: number

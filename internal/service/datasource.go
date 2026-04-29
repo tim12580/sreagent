@@ -248,6 +248,54 @@ func (s *DataSourceService) QueryRange(ctx context.Context, dsID uint, expressio
 	return resp, nil
 }
 
+// LogQueryResponse holds the result of a log query.
+type LogQueryResponse struct {
+	Entries   []datasource.LogEntry `json:"entries"`
+	Total     int                   `json:"total"`
+	Truncated bool                  `json:"truncated"`
+}
+
+// LogQueryParams holds parameters for a log query.
+type LogQueryParams struct {
+	Expression string
+	Start      time.Time
+	End        time.Time
+	Limit      int
+}
+
+// QueryLogs executes a LogsQL query against a VictoriaLogs datasource and returns log entries.
+func (s *DataSourceService) QueryLogs(ctx context.Context, dsID uint, params LogQueryParams) (*LogQueryResponse, error) {
+	ds, err := s.repo.GetByID(ctx, dsID)
+	if err != nil {
+		return nil, apperr.ErrDSNotFound
+	}
+
+	if ds.Type != model.DSTypeVictoriaLogs {
+		return nil, apperr.WithMessage(apperr.ErrInvalidParam, "log query only supported for victorialogs datasources")
+	}
+
+	result, err := datasource.QueryLogs(ctx, ds.Endpoint, ds.AuthType, ds.AuthConfig, datasource.QueryLogsParams{
+		Query: params.Expression,
+		Start: params.Start,
+		End:   params.End,
+		Limit: params.Limit,
+	})
+	if err != nil {
+		s.logger.Error("log query failed",
+			zap.String("datasource", ds.Name),
+			zap.String("expression", params.Expression),
+			zap.Error(err),
+		)
+		return nil, apperr.WithMessage(apperr.ErrExternalAPI, err.Error())
+	}
+
+	return &LogQueryResponse{
+		Entries:   result.Entries,
+		Total:     result.Total,
+		Truncated: result.Truncated,
+	}, nil
+}
+
 // ProxyToDatasource proxies an HTTP GET request to the target datasource's API.
 // Used for label/metric queries to support PromQL autocompletion.
 func (s *DataSourceService) ProxyToDatasource(ctx context.Context, dsID uint, path string, params map[string]string) ([]byte, error) {

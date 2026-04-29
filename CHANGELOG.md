@@ -4,6 +4,18 @@
 
 ---
 
+## [v1.16.0] - 2026-04-29
+
+### Added
+- 日志探索页面（Log Explorer）：LogsQL 查询、日志表格展示、时间范围选择
+- VictoriaLogs 日志查询端点：`POST /api/v1/datasources/:id/log-query`
+- 侧栏菜单新增「日志探索」入口（数据源子菜单下）
+- 中英文 i18n 支持
+
+### Fixed
+- 修复数据查询页白屏：`crypto.randomUUID` 在 HTTP 非安全上下文下不可用，改用 fallback UUID 生成
+- 修复登录页 401 错误显示英文：拦截器现在优先使用后端返回的业务错误码进行本地化（如 10102 → "用户名或密码错误"）
+
 ## [v1.15.0] - 2026-04-29
 
 ### Added

@@ -36,6 +36,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'Query', icon: 'search' },
       },
       {
+        path: 'explore/logs',
+        name: 'LogExplorer',
+        component: () => import('@/pages/explore/LogExplorer.vue'),
+        meta: { title: 'Log Explorer', icon: 'document-text' },
+      },
+      {
         path: 'dashboards-v2',
         name: 'DashboardV2List',
         component: () => import('@/pages/dashboard-v2/Index.vue'),

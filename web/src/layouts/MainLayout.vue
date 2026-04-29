@@ -27,6 +27,7 @@ import {
   TimeOutline,
   ChevronBackOutline,
   ChevronForwardOutline,
+  DocumentTextOutline,
 } from '@vicons/ionicons5'
 
 const router = useRouter()
@@ -115,6 +116,7 @@ const menuOptions = computed<MenuOption[]>(() => {
       children: [
         { label: t('menu.datasourceList'), key: '/datasources' },
         { label: t('menu.datasourceQuery'), key: '/datasources/query' },
+        { label: t('menu.logExplorer') || 'Log Explorer', key: '/explore/logs', icon: renderIcon(DocumentTextOutline) },
       ],
     },
     {
@@ -139,6 +141,7 @@ const menuOptions = computed<MenuOption[]>(() => {
 
 function resolveActiveKey(p: string): string {
   if (p.startsWith('/datasources/query'))         return '/datasources/query'
+  if (p.startsWith('/explore/logs'))              return '/explore/logs'
   if (p.startsWith('/datasources'))               return '/datasources'
   if (p.startsWith('/alerts/rules'))              return '/alerts/rules'
   if (p.startsWith('/alerts/events'))             return '/alerts/events'
@@ -212,6 +215,7 @@ const pageTitle = computed(() => {
   if (p === '/dashboard')                         return t('menu.dashboard')
   if (p === '/datasources')                       return t('menu.datasources')
   if (p.startsWith('/datasources/query'))         return t('menu.datasourceQuery')
+  if (p.startsWith('/explore/logs'))              return t('menu.logExplorer') || 'Log Explorer'
   if (p.startsWith('/alerts/rules'))              return t('menu.alertRules')
   if (p.startsWith('/alerts/events'))             return t('menu.activeAlerts')
   if (p.startsWith('/alerts/history'))            return t('menu.alertHistory')

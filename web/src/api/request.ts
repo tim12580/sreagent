@@ -66,7 +66,17 @@ request.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config
+    const data = error.response?.data as ApiResponse | undefined
+    const code = data?.code || 0
+
     if (error.response?.status === 401 && !originalRequest._retried) {
+      // If the backend returned a specific error code (e.g. 10102 invalid credentials),
+      // surface the localized message directly — don't attempt token refresh.
+      if (code && code !== 10101) {
+        const fallback = data?.message || error.message || 'Unauthorized'
+        return Promise.reject(new Error(localizeError(code, fallback)))
+      }
+
       originalRequest._retried = true
       const storedToken = localStorage.getItem('token')
       if (storedToken && !isRedirecting) {
@@ -92,8 +102,6 @@ request.interceptors.response.use(
       redirectToLogin()
       return Promise.reject(error)
     }
-    const data = error.response?.data as ApiResponse | undefined
-    const code = data?.code || 0
     const fallback = data?.message || error.message || 'Network error'
     return Promise.reject(new Error(localizeError(code, fallback)))
   }

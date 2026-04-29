@@ -1,7 +1,7 @@
 # 模块清单 (MODULES)
 
-> 最后更新: 2026-04-29 | tag: v1.15.0
-> 共 24 个 model, 31 个 handler, 30 个 service, 23 个 repository, 125+ API 端点
+> 最后更新: 2026-04-29 | tag: v1.16.0
+> 共 24 个 model, 31 个 handler, 30 个 service, 23 个 repository, 126+ API 端点
 
 ---
 
@@ -136,10 +136,10 @@ dashboard ──→ alert-event (统计数据)
 
 ## 数据源 (datasource)
 
-- **功能**: Prom/VM/VLogs/Zabbix 多源管理、健康检查、Instant/Range Query、标签代理
+- **功能**: Prom/VM/VLogs/Zabbix 多源管理、健康检查、Instant/Range Query、日志查询、标签代理
 - **后端**: `model/datasource.go`, `handler/datasource.go`, `service/datasource.go`, `repository/datasource.go`, `pkg/datasource/` (8 files)
-- **前端**: `web/src/pages/datasources/Index.vue`, `web/src/pages/explore/Index.vue`
-- **API**: `/api/v1/datasources` (11 endpoints: CRUD + health-check + query + query-range + labels/keys + labels/values + metrics)
+- **前端**: `web/src/pages/datasources/Index.vue`, `web/src/pages/explore/Index.vue`, `web/src/pages/explore/LogExplorer.vue`
+- **API**: `/api/v1/datasources` (12 endpoints: CRUD + health-check + query + query-range + log-query + labels/keys + labels/values + metrics)
 - **状态**: ✅ 完成
 
 ## 仪表盘 V2 (dashboard-v2)

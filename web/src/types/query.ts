@@ -44,3 +44,17 @@ export interface RelativeTimeOption {
   value: string        // e.g. "1h", "6h", "7d"
   ms: number
 }
+
+/** A single log entry returned by VictoriaLogs */
+export interface LogEntry {
+  timestamp: string
+  message: string
+  labels: Record<string, any>
+}
+
+/** Response from log query API */
+export interface LogQueryResponse {
+  entries: LogEntry[]
+  total: number
+  truncated: boolean
+}

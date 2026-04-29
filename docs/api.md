@@ -253,6 +253,7 @@ Authorization: Bearer <token>
 | POST | `/datasources/:id/health-check` | 管理权限 | 触发健康检查 |
 | POST | `/datasources/:id/query` | 管理权限 | Instant Query 测试 |
 | POST | `/datasources/:id/query-range` | 管理权限 | Range Query（时间序列查询） |
+| POST | `/datasources/:id/log-query` | 管理权限 | 日志查询（VictoriaLogs LogsQL） |
 | GET | `/datasources/:id/labels/keys` | 已认证 | 获取 label name 列表（自动补全） |
 | GET | `/datasources/:id/labels/values?key=job` | 已认证 | 获取 label value 列表 |
 | GET | `/datasources/:id/metrics?search=&limit=` | 已认证 | 获取 metric 名称列表 |
@@ -279,6 +280,34 @@ Authorization: Bearer <token>
         "values": [{"ts": 1714300800000, "value": 123.45}]
       }
     ]
+  }
+}
+```
+
+**Log Query 请求体：**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `expression` | string | 是 | LogsQL 查询表达式 |
+| `start` | number | 是 | 起始时间（Unix 秒） |
+| `end` | number | 是 | 结束时间（Unix 秒） |
+| `limit` | number | 否 | 最大返回条数，默认 100，上限 10000 |
+
+**Log Query 响应：**
+
+```json
+{
+  "code": 0,
+  "data": {
+    "entries": [
+      {
+        "timestamp": "2026-04-29T10:00:00Z",
+        "message": "ERROR: connection refused",
+        "labels": {"job": "api-server", "level": "error", "instance": "10.0.0.1:9090"}
+      }
+    ],
+    "total": 1,
+    "truncated": false
   }
 }
 ```

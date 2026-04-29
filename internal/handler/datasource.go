@@ -282,6 +282,42 @@ func (h *DataSourceHandler) LabelValues(c *gin.Context) {
 	Success(c, apiResp.Data)
 }
 
+// LogQuery executes a LogsQL query against a VictoriaLogs datasource and returns log entries.
+// POST /api/v1/datasources/:id/log-query
+func (h *DataSourceHandler) LogQuery(c *gin.Context) {
+	id, err := GetIDParam(c, "id")
+	if err != nil {
+		Error(c, err)
+		return
+	}
+
+	var req struct {
+		Expression string  `json:"expression" binding:"required"`
+		Start      float64 `json:"start" binding:"required"` // unix timestamp in seconds
+		End        float64 `json:"end" binding:"required"`   // unix timestamp in seconds
+		Limit      int     `json:"limit"`                    // max entries, default 100
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		ErrorWithMessage(c, 10001, err.Error())
+		return
+	}
+
+	start := time.Unix(int64(req.Start), 0)
+	end := time.Unix(int64(req.End), 0)
+
+	result, err := h.svc.QueryLogs(c.Request.Context(), id, service.LogQueryParams{
+		Expression: req.Expression,
+		Start:      start,
+		End:        end,
+		Limit:      req.Limit,
+	})
+	if err != nil {
+		Error(c, err)
+		return
+	}
+	Success(c, result)
+}
+
 // MetricNames returns metric names from the target datasource (for PromQL autocompletion).
 // GET /api/v1/datasources/:id/metrics?search=http&limit=100
 func (h *DataSourceHandler) MetricNames(c *gin.Context) {

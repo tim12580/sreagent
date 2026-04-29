@@ -36,6 +36,7 @@ import type {
   QueryResponse,
   AlertGroupItem,
   InhibitionRule,
+  LogEntry,
 } from '@/types'
 
 // ===== Auth API =====
@@ -99,6 +100,9 @@ export const datasourceApi = {
 
   metricNames: (id: number, search?: string, limit = 100) =>
     request.get<ApiResponse<string[]>>(`/datasources/${id}/metrics`, { params: { search, limit } }),
+
+  logQuery: (id: number, data: { expression: string; start: number; end: number; limit?: number }) =>
+    request.post<ApiResponse<{ entries: LogEntry[]; total: number; truncated: boolean }>>(`/datasources/${id}/log-query`, data),
 }
 
 // ===== Alert Rule API =====

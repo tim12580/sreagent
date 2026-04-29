@@ -158,3 +158,126 @@ func VictoriaLogsInstantQuery(ctx context.Context, endpoint, authType, authConfi
 		},
 	}, nil
 }
+
+// LogEntry represents a single log line returned by VictoriaLogs.
+type LogEntry struct {
+	Timestamp time.Time              `json:"timestamp"`
+	Message   string                 `json:"message"`
+	Labels    map[string]interface{} `json:"labels"`
+}
+
+// LogQueryResponse holds the parsed result of a VictoriaLogs log query.
+type LogQueryResponse struct {
+	Entries    []LogEntry `json:"entries"`
+	Total      int        `json:"total"`
+	Truncated  bool       `json:"truncated"`
+}
+
+// QueryLogsParams holds parameters for a log query.
+type QueryLogsParams struct {
+	Query string
+	Start time.Time
+	End   time.Time
+	Limit int
+}
+
+// QueryLogs executes a LogsQL query and returns the actual log entries.
+//
+// VictoriaLogs API: POST /select/logsql/query
+// Response format: NDJSON — one JSON object per line.
+// Each line contains the log fields including _msg (log message) and _time (timestamp).
+func QueryLogs(ctx context.Context, endpoint, authType, authConfig string, params QueryLogsParams) (*LogQueryResponse, error) {
+	apiURL := strings.TrimRight(endpoint, "/") + "/select/logsql/query"
+
+	if params.Limit <= 0 {
+		params.Limit = 100
+	}
+	if params.Limit > 10000 {
+		params.Limit = 10000
+	}
+
+	form := url.Values{}
+	form.Set("query", params.Query)
+	form.Set("start", params.Start.Format(time.RFC3339))
+	form.Set("end", params.End.Format(time.RFC3339))
+	form.Set("limit", fmt.Sprintf("%d", params.Limit))
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create log query request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	applyAuth(req, authType, authConfig)
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("log query request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("log query returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	// Parse NDJSON response
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, 1024*1024), 1024*1024) // 1MB per line max
+
+	entries := make([]LogEntry, 0, params.Limit)
+
+	for scanner.Scan() {
+		line := bytes.TrimSpace(scanner.Bytes())
+		if len(line) == 0 {
+			continue
+		}
+
+		var raw map[string]interface{}
+		if err := json.Unmarshal(line, &raw); err != nil {
+			continue // skip malformed lines
+		}
+
+		entry := LogEntry{
+			Labels: make(map[string]interface{}),
+		}
+
+		// Extract timestamp from _time field
+		if t, ok := raw["_time"]; ok {
+			switch v := t.(type) {
+			case string:
+				if ts, err := time.Parse(time.RFC3339Nano, v); err == nil {
+					entry.Timestamp = ts
+				}
+			case float64:
+				// Unix nanoseconds
+				entry.Timestamp = time.Unix(0, int64(v))
+			}
+			delete(raw, "_time")
+		}
+
+		// Extract message from _msg field
+		if msg, ok := raw["_msg"]; ok {
+			if s, ok := msg.(string); ok {
+				entry.Message = s
+			}
+			delete(raw, "_msg")
+		}
+
+		// Store all remaining fields as labels
+		for k, v := range raw {
+			entry.Labels[k] = v
+		}
+
+		entries = append(entries, entry)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("failed to read log query response: %w", err)
+	}
+
+	return &LogQueryResponse{
+		Entries:   entries,
+		Total:     len(entries),
+		Truncated: len(entries) >= params.Limit,
+	}, nil
+}
