@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, nextTick } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   NButton, NSpace, NInput, NSwitch, NDrawer, NDrawerContent,
-  NForm, NFormItem, NSelect, NInputNumber, NCollapse, NCollapseItem,
-  NTag, NDivider, useMessage, NCard, NScrollbar
+  NForm, NFormItem, NSelect, NInputNumber, NDivider, NTag, useMessage
 } from 'naive-ui'
+import { useI18n } from 'vue-i18n'
 import { pipelineApi } from '@/api'
 import type { EventPipeline, PipelineNode, Connections, LabelFilter } from '@/types/pipeline'
 import { PROCESSOR_TYPES } from '@/types/pipeline'
 
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const message = useMessage()
@@ -35,7 +36,6 @@ const showNodeConfig = ref(false)
 const draggingNode = ref<string | null>(null)
 const dragOffset = ref({ x: 0, y: 0 })
 const connectingFrom = ref<{ nodeId: string; outputIdx: number } | null>(null)
-const canvasOffset = ref({ x: 0, y: 0 })
 
 const selectedNode = computed(() =>
   nodes.value.find(n => n.id === selectedNodeId.value) || null
@@ -78,7 +78,6 @@ function getDefaultConfig(type: string): Record<string, any> {
 
 function removeNode(nodeId: string) {
   nodes.value = nodes.value.filter(n => n.id !== nodeId)
-  // Remove connections involving this node
   const newConns: Connections = {}
   for (const [src, outputs] of Object.entries(connections.value)) {
     if (src === nodeId) continue
@@ -180,7 +179,7 @@ async function loadPipeline() {
     nodes.value = p.nodes || []
     connections.value = p.connections || {}
   } catch (err: any) {
-    message.error('Failed to load pipeline')
+    message.error(t('common.loadFailed'))
     router.back()
   } finally {
     loading.value = false
@@ -189,7 +188,7 @@ async function loadPipeline() {
 
 async function handleSave() {
   if (!name.value.trim()) {
-    message.warning('Name is required')
+    message.warning(t('pipeline.nameRequired'))
     return
   }
   saving.value = true
@@ -205,14 +204,14 @@ async function handleSave() {
     }
     if (isNew.value) {
       const res = await pipelineApi.create(data)
-      message.success('Created')
+      message.success(t('pipeline.created'))
       router.replace({ name: 'PipelineEditor', params: { id: res.data.data.id } })
     } else {
       await pipelineApi.update(pipelineId.value, data)
-      message.success('Saved')
+      message.success(t('pipeline.updated'))
     }
   } catch (err: any) {
-    message.error(err.message || 'Save failed')
+    message.error(err.message || t('common.saveFailed'))
   } finally {
     saving.value = false
   }
@@ -234,48 +233,65 @@ onMounted(loadPipeline)
     <!-- Toolbar -->
     <div class="editor-toolbar">
       <NSpace align="center">
-        <NButton quaternary @click="router.back()">Back</NButton>
+        <NButton quaternary @click="router.back()">{{ t('pipeline.back') }}</NButton>
         <NDivider vertical />
-        <NInput v-model:value="name" placeholder="Pipeline name" style="width: 200px" />
-        <NInput v-model:value="description" placeholder="Description" style="width: 300px" />
-        <span style="font-size: 13px; color: #666">Disabled</span>
+        <NInput v-model:value="name" :placeholder="t('pipeline.pipelineName')" style="width: 200px" />
+        <NInput v-model:value="description" :placeholder="t('pipeline.pipelineDesc')" style="width: 300px" />
+        <span style="font-size: 13px; color: var(--sre-text-secondary)">{{ t('pipeline.disabled') }}</span>
         <NSwitch v-model:value="disabled" size="small" />
         <NDivider vertical />
-        <NButton type="primary" :loading="saving" @click="handleSave">Save</NButton>
+        <NButton type="primary" :loading="saving" @click="handleSave">{{ t('pipeline.save') }}</NButton>
       </NSpace>
     </div>
 
     <div class="editor-body">
       <!-- Node palette -->
       <div class="node-palette">
-        <div class="palette-title">Processors</div>
+        <div class="palette-title">{{ t('pipeline.processors') }}</div>
         <div
           v-for="pt in PROCESSOR_TYPES"
           :key="pt.value"
           class="palette-item"
           :style="{ borderLeftColor: pt.color }"
+          :title="t(`pipeline.proc${pt.value.charAt(0).toUpperCase() + pt.value.slice(1).replace(/_/g, '')}Desc`)"
           @click="addNode(pt.value)"
         >
           {{ pt.label }}
         </div>
 
         <NDivider />
-        <div class="palette-title">Filters</div>
-        <NSpace vertical size="small">
+        <div class="palette-title">{{ t('pipeline.filters') }}</div>
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px">
           <NSwitch v-model:value="filterEnable" size="small" />
-          <span style="font-size: 12px; color: #888">Label pre-filter</span>
-        </NSpace>
+          <span style="font-size: 12px; color: var(--sre-text-secondary)">{{ t('pipeline.filterEnable') }}</span>
+        </div>
+        <div v-if="filterEnable" style="font-size: 11px; color: var(--sre-text-tertiary, #aaa); margin-bottom: 8px">
+          {{ t('pipeline.filterHint') }}
+        </div>
 
         <template v-if="filterEnable">
           <div v-for="(f, i) in labelFilters" :key="i" class="filter-row">
             <NInput v-model:value="f.key" size="tiny" placeholder="key" style="width: 60px" />
             <NSelect v-model:value="f.op" size="tiny" style="width: 55px"
-              :options="['==','!=','!~','in','not_in'].map(v => ({ label: v, value: v }))" />
+              :options="['==','!=','=~','!~','in','not_in'].map(v => ({ label: v, value: v }))" />
             <NInput v-model:value="f.value" size="tiny" placeholder="value" style="width: 60px" />
             <NButton size="tiny" quaternary type="error" @click="removeLabelFilter(i)">x</NButton>
           </div>
-          <NButton size="tiny" @click="addLabelFilter">+ Filter</NButton>
+          <NButton size="tiny" @click="addLabelFilter">{{ t('pipeline.addFilter') }}</NButton>
         </template>
+
+        <!-- Help card -->
+        <NDivider />
+        <div style="font-size: 11px; color: var(--sre-text-tertiary, #aaa); line-height: 1.6">
+          <p><strong>How to use:</strong></p>
+          <ol style="padding-left: 16px; margin: 4px 0">
+            <li>Click a processor to add it</li>
+            <li>Drag nodes to reposition</li>
+            <li>Click output port (●) then input port (●) to connect</li>
+            <li>Click a node to configure it</li>
+            <li>Click connection line to remove</li>
+          </ol>
+        </div>
       </div>
 
       <!-- Canvas -->
@@ -363,27 +379,27 @@ onMounted(loadPipeline)
 
       <!-- Node config panel -->
       <NDrawer v-model:show="showNodeConfig" width="360" placement="right">
-        <NDrawerContent :title="selectedNode ? `Configure: ${selectedNode.name}` : 'Node Config'">
+        <NDrawerContent :title="selectedNode ? `${t('pipeline.configureNode', { name: selectedNode.name })}` : t('pipeline.nodeConfig')">
           <template v-if="selectedNode">
             <NForm label-placement="top" size="small">
-              <NFormItem label="Name">
+              <NFormItem :label="t('pipeline.nodeName')">
                 <NInput v-model:value="selectedNode.name" />
               </NFormItem>
-              <NFormItem label="Type">
+              <NFormItem :label="t('pipeline.nodeType')">
                 <NTag :style="{ color: getProcessorInfo(selectedNode.type).color }">
                   {{ getProcessorInfo(selectedNode.type).label }}
                 </NTag>
               </NFormItem>
-              <NFormItem label="Disabled">
+              <NFormItem :label="t('pipeline.nodeDisabled')">
                 <NSwitch v-model:value="selectedNode.disabled" />
               </NFormItem>
-              <NFormItem label="Continue on Fail">
+              <NFormItem :label="t('pipeline.continueOnFail')">
                 <NSwitch v-model:value="selectedNode.continue_on_fail" />
               </NFormItem>
-              <NFormItem label="Retry on Fail">
+              <NFormItem :label="t('pipeline.retryOnFail')">
                 <NSwitch v-model:value="selectedNode.retry_on_fail" />
               </NFormItem>
-              <NFormItem v-if="selectedNode.retry_on_fail" label="Max Retries">
+              <NFormItem v-if="selectedNode.retry_on_fail" :label="t('pipeline.maxRetries')">
                 <NInputNumber v-model:value="selectedNode.max_retries" :min="1" :max="5" />
               </NFormItem>
 
@@ -391,68 +407,68 @@ onMounted(loadPipeline)
 
               <!-- Type-specific config -->
               <template v-if="selectedNode.type === 'if'">
-                <NFormItem label="Mode">
+                <NFormItem :label="t('pipeline.mode')">
                   <NSelect v-model:value="selectedNode.config.mode"
-                    :options="[{ label: 'Tags', value: 'tags' }, { label: 'Expression', value: 'expression' }]" />
+                    :options="[{ label: t('pipeline.modeTags'), value: 'tags' }, { label: t('pipeline.modeExpression'), value: 'expression' }]" />
                 </NFormItem>
                 <template v-if="selectedNode.config.mode === 'expression'">
-                  <NFormItem label="Field">
+                  <NFormItem :label="t('pipeline.field')">
                     <NSelect v-model:value="selectedNode.config.expression.field"
                       :options="['severity', 'status', 'source', 'alert_name'].map(v => ({ label: v, value: v }))" />
                   </NFormItem>
-                  <NFormItem label="Operator">
+                  <NFormItem :label="t('pipeline.operator')">
                     <NSelect v-model:value="selectedNode.config.expression.op"
                       :options="['==', '!=', '=~', '!~'].map(v => ({ label: v, value: v }))" />
                   </NFormItem>
-                  <NFormItem label="Value">
+                  <NFormItem :label="t('pipeline.value')">
                     <NInput v-model:value="selectedNode.config.expression.value" />
                   </NFormItem>
                 </template>
               </template>
 
               <template v-else-if="selectedNode.type === 'event_drop'">
-                <NFormItem label="Drop Condition">
-                  <div style="font-size: 12px; color: #888; margin-bottom: 8px">
-                    If all conditions match, the event will be dropped.
+                <NFormItem :label="t('pipeline.dropCondition')">
+                  <div style="font-size: 12px; color: var(--sre-text-tertiary, #999); margin-bottom: 8px">
+                    {{ t('pipeline.dropConditionHint') }}
                   </div>
                 </NFormItem>
-                <NFormItem label="Field">
+                <NFormItem :label="t('pipeline.field')">
                   <NSelect v-model:value="selectedNode.config.expression.field"
                     :options="['severity', 'status', 'source', 'alert_name'].map(v => ({ label: v, value: v }))" />
                 </NFormItem>
-                <NFormItem label="Operator">
+                <NFormItem :label="t('pipeline.operator')">
                   <NSelect v-model:value="selectedNode.config.expression.op"
                     :options="['==', '!=', '=~', '!~'].map(v => ({ label: v, value: v }))" />
                 </NFormItem>
-                <NFormItem label="Value">
+                <NFormItem :label="t('pipeline.value')">
                   <NInput v-model:value="selectedNode.config.expression.value" />
                 </NFormItem>
               </template>
 
               <template v-else-if="selectedNode.type === 'callback'">
-                <NFormItem label="URL">
+                <NFormItem :label="t('pipeline.url')">
                   <NInput v-model:value="selectedNode.config.url" placeholder="https://example.com/webhook" />
                 </NFormItem>
-                <NFormItem label="Method">
+                <NFormItem :label="t('pipeline.method')">
                   <NSelect v-model:value="selectedNode.config.method"
                     :options="['POST', 'GET'].map(v => ({ label: v, value: v }))" />
                 </NFormItem>
-                <NFormItem label="Timeout (seconds)">
+                <NFormItem :label="t('pipeline.timeout')">
                   <NInputNumber v-model:value="selectedNode.config.timeout" :min="1" :max="60" />
                 </NFormItem>
               </template>
 
               <template v-else-if="selectedNode.type === 'ai_summary'">
-                <NFormItem label="API URL">
+                <NFormItem :label="t('pipeline.apiUrl')">
                   <NInput v-model:value="selectedNode.config.api_url" placeholder="https://api.openai.com/v1/chat/completions" />
                 </NFormItem>
-                <NFormItem label="API Key">
+                <NFormItem :label="t('pipeline.apiKey')">
                   <NInput v-model:value="selectedNode.config.api_key" type="password" show-password-on="click" />
                 </NFormItem>
-                <NFormItem label="Model">
+                <NFormItem :label="t('pipeline.model')">
                   <NInput v-model:value="selectedNode.config.model" />
                 </NFormItem>
-                <NFormItem label="Timeout (seconds)">
+                <NFormItem :label="t('pipeline.timeout')">
                   <NInputNumber v-model:value="selectedNode.config.timeout" :min="5" :max="120" />
                 </NFormItem>
               </template>
@@ -469,12 +485,12 @@ onMounted(loadPipeline)
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #f5f5f5;
+  background: var(--sre-bg-page, #f5f5f5);
 }
 .editor-toolbar {
   padding: 8px 16px;
-  background: #fff;
-  border-bottom: 1px solid #e0e0e0;
+  background: var(--sre-bg-card, #fff);
+  border-bottom: 1px solid var(--sre-border, #e0e0e0);
   display: flex;
   align-items: center;
 }
@@ -484,16 +500,16 @@ onMounted(loadPipeline)
   overflow: hidden;
 }
 .node-palette {
-  width: 180px;
-  background: #fff;
-  border-right: 1px solid #e0e0e0;
+  width: 190px;
+  background: var(--sre-bg-card, #fff);
+  border-right: 1px solid var(--sre-border, #e0e0e0);
   padding: 12px;
   overflow-y: auto;
 }
 .palette-title {
   font-size: 12px;
   font-weight: 600;
-  color: #666;
+  color: var(--sre-text-secondary, #666);
   text-transform: uppercase;
   margin-bottom: 8px;
 }
@@ -502,13 +518,13 @@ onMounted(loadPipeline)
   margin-bottom: 4px;
   border-radius: 6px;
   border-left: 3px solid;
-  background: #fafafa;
+  background: var(--sre-bg-hover, #fafafa);
   cursor: pointer;
   font-size: 13px;
   transition: background 0.15s;
 }
 .palette-item:hover {
-  background: #f0f0f0;
+  background: var(--sre-bg-active, #f0f0f0);
 }
 .filter-row {
   display: flex;
@@ -520,6 +536,7 @@ onMounted(loadPipeline)
   flex: 1;
   position: relative;
   overflow: auto;
+  background: var(--sre-bg-canvas, #fafbfc);
 }
 .connections-svg {
   position: absolute;
@@ -542,7 +559,7 @@ onMounted(loadPipeline)
   width: 180px;
   border: 2px solid #ddd;
   border-radius: 8px;
-  background: #fff;
+  background: var(--sre-bg-card, #fff);
   cursor: grab;
   user-select: none;
   box-shadow: 0 2px 8px rgba(0,0,0,0.08);

@@ -18,13 +18,24 @@ type OnCallResolver interface {
 	GetCurrentOnCallForAlert(ctx context.Context, alertLabels map[string]string) (*model.User, error)
 }
 
+// AlertWorkerPool is a bounded executor for alert processing callbacks.
+type AlertWorkerPool interface {
+	Submit(ctx context.Context, fn func(context.Context)) bool
+}
+
 type AlertEventService struct {
 	repo         *repository.AlertEventRepository
 	timelineRepo *repository.AlertTimelineRepository
 	notifySvc    *NotificationService
 	onCallSvc    OnCallResolver
 	larkSvc      *LarkService
+	workerPool   AlertWorkerPool
 	logger       *zap.Logger
+}
+
+// SetWorkerPool wires the bounded worker pool for notification dispatch.
+func (s *AlertEventService) SetWorkerPool(p AlertWorkerPool) {
+	s.workerPool = p
 }
 
 // SetNotificationService wires the notification service for alert routing.
@@ -367,16 +378,26 @@ func (s *AlertEventService) processAlert(ctx context.Context, alert *model.Alert
 		}
 	}
 
-	// Trigger notification routing
+	// Trigger notification routing (bounded worker pool)
 	if s.notifySvc != nil {
-		go func() {
-			if err := s.notifySvc.RouteAlert(context.Background(), event); err != nil {
+		eventID := event.ID
+		dispatch := func(ctx context.Context) {
+			if err := s.notifySvc.RouteAlert(ctx, event); err != nil {
 				s.logger.Error("failed to route alert notification",
-					zap.Uint("event_id", event.ID),
+					zap.Uint("event_id", eventID),
 					zap.Error(err),
 				)
 			}
-		}()
+		}
+		if s.workerPool != nil {
+			if !s.workerPool.Submit(context.Background(), dispatch) {
+				s.logger.Warn("worker pool full, notification deferred to next eval cycle",
+					zap.Uint("event_id", eventID),
+				)
+			}
+		} else {
+			go dispatch(context.Background())
+		}
 	}
 
 	s.logger.Info("new alert event created",
@@ -388,21 +409,28 @@ func (s *AlertEventService) processAlert(ctx context.Context, alert *model.Alert
 	return nil
 }
 
-// triggerLarkCardUpdate fires a background goroutine to patch the Lark card
-// when the alert was originally sent via Bot API (LarkMessageID is non-empty).
+// triggerLarkCardUpdate patches the Lark card in the background when the alert
+// was originally sent via Bot API (LarkMessageID is non-empty).  Uses the
+// bounded worker pool when available.
 func (s *AlertEventService) triggerLarkCardUpdate(event *model.AlertEvent) {
 	if s.larkSvc == nil || event.LarkMessageID == "" {
 		return
 	}
-	go func(e *model.AlertEvent) {
-		if err := s.larkSvc.UpdateAlertCard(context.Background(), e, e.LarkMessageID); err != nil {
+	e := event
+	fn := func(ctx context.Context) {
+		if err := s.larkSvc.UpdateAlertCard(ctx, e, e.LarkMessageID); err != nil {
 			s.logger.Warn("failed to update lark card after status change",
 				zap.Uint("event_id", e.ID),
 				zap.String("status", string(e.Status)),
 				zap.Error(err),
 			)
 		}
-	}(event)
+	}
+	if s.workerPool != nil {
+		s.workerPool.Submit(context.Background(), fn) // best-effort; don't block caller
+	} else {
+		go fn(context.Background())
+	}
 }
 
 func (s *AlertEventService) addTimeline(ctx context.Context, eventID uint, action model.AlertTimelineAction, operatorID *uint, note string) {

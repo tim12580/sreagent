@@ -24,10 +24,11 @@ type EngineConfig struct {
 }
 
 type ServerConfig struct {
-	Host         string `mapstructure:"host"`
-	Port         int    `mapstructure:"port"`
-	Mode         string `mapstructure:"mode"`
-	ExternalBase string `mapstructure:"external_base"` // external base URL for links in notifications
+	Host          string `mapstructure:"host"`
+	Port          int    `mapstructure:"port"`
+	Mode          string `mapstructure:"mode"`
+	ExternalBase  string `mapstructure:"external_base"`  // external base URL for links in notifications
+	WebhookSecret string `mapstructure:"webhook_secret"` // shared secret for /webhooks/* endpoints
 }
 
 func (s *ServerConfig) Addr() string {

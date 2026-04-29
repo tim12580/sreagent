@@ -67,8 +67,8 @@ func Setup(cfg *config.Config, handlers *Handlers, logger *zap.Logger) *gin.Engi
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
-	// Webhook endpoint (no auth - authenticated by shared secret or source IP)
-	webhooks := r.Group("/webhooks")
+	// Webhook endpoint — authenticated by shared secret (X-Webhook-Secret header)
+	webhooks := r.Group("/webhooks", middleware.WebhookAuth(cfg.Server.WebhookSecret))
 	{
 		webhooks.POST("/alertmanager", handlers.AlertEvent.WebhookReceive)
 	}

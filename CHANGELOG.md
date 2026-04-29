@@ -4,7 +4,30 @@
 
 ---
 
-## [v1.16.3] - 2026-04-29
+## [v1.16.4] - 2026-04-29
+
+### Security
+- P0-1: Webhook 端点增加共享密钥认证中间件 (`X-Webhook-Secret` header, constant-time compare)
+- P0-2: 引入有界 goroutine 池 (`AlertWorkerPool`, 默认 64 并发)，防止告警风暴导致 goroutine 耗尽
+- P0-2: `RuleEvaluator.createAlertEvent`/`resolveAlertEvent` 改用 worker pool 替代裸 `go func()`
+- P0-2: `AlertEventService.processAlert`/`triggerLarkCardUpdate` 改用 worker pool
+- P0-3: 修复优雅关闭顺序 (evaluator → heartbeat → groupMgr → escalation → pool.Wait() → HTTP → Redis)
+
+### Changed
+- **数据探索页面重写**: 移除复杂多目标 Grafana 风格 UI，改为简单交互：选数据源→自动匹配查询引擎→输入表达式→执行
+- 自动根据数据源类型调整查询占位提示 (PromQL / LogsQL / Zabbix key)
+- 查询结果图表自动适配 vector/matrix 类型
+- **处理链页面完善**: 100% 国际化覆盖 (40+ i18n key)，列表页增加功能介绍说明，编辑器增加使用指南
+- 处理链空状态增加引导文案和新建按钮
+- 处理器节点增加 tooltip 功能描述
+- 清理 `explore` i18n 中的无用 key (`addQuery`, `runQueries`, `legendFormat`, `toggleOn`, `toggleOff`, `queryLabel`)
+
+### Added
+- `internal/middleware/webhook_auth.go` — Webhook 共享密钥认证中间件
+- `internal/engine/workerpool.go` — 有界 goroutine 池 (semaphore + WaitGroup)
+- `config.Server.WebhookSecret` 配置项
+- pipeline i18n keys (zh-CN + en): title/subtitle/create/edit/noData/noDataHint/processors/filters/editorTitle/configureNode/proc*Desc 等 40+ 键
+- explore i18n keys: promqlPlaceholder/zabbixPlaceholder/metricName/value/labelsHeader
 
 ### Added
 - 侧栏新增「处理链」菜单项，Pipeline 页面入口

@@ -371,14 +371,24 @@ func (re *RuleEvaluator) createAlertEvent(state *AlertState, status model.AlertE
 
 	// Call the onAlert callback to trigger notification routing
 	if re.onAlert != nil {
-		go func() {
+		ev := event
+		fn := func(ctx context.Context) {
 			defer func() {
 				if r := recover(); r != nil {
 					re.logger.Error("panic in onAlert callback", zap.Any("recover", r))
 				}
 			}()
-			re.onAlert(context.Background(), event)
-		}()
+			re.onAlert(ctx, ev)
+		}
+		if re.workerPool != nil {
+			if !re.workerPool.Submit(context.Background(), fn) {
+				re.logger.Warn("worker pool full, onAlert deferred to next eval cycle",
+					zap.Uint("event_id", ev.ID),
+				)
+			}
+		} else {
+			go fn(context.Background())
+		}
 	}
 }
 
@@ -441,14 +451,24 @@ func (re *RuleEvaluator) resolveAlertEvent(state *AlertState) {
 
 	// Notify about resolution
 	if re.onAlert != nil {
-		go func() {
+		ev := event
+		fn := func(ctx context.Context) {
 			defer func() {
 				if r := recover(); r != nil {
 					re.logger.Error("panic in onAlert callback (resolve)", zap.Any("recover", r))
 				}
 			}()
-			re.onAlert(context.Background(), event)
-		}()
+			re.onAlert(ctx, ev)
+		}
+		if re.workerPool != nil {
+			if !re.workerPool.Submit(context.Background(), fn) {
+				re.logger.Warn("worker pool full, onAlert (resolve) deferred to next eval cycle",
+					zap.Uint("event_id", ev.ID),
+				)
+			}
+		} else {
+			go fn(context.Background())
+		}
 	}
 }
 

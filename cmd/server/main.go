@@ -261,6 +261,11 @@ func main() {
 	// Wire lark service for in-place card updates on status change
 	eventSvc.SetLarkService(larkSvc)
 
+	// Initialize bounded worker pool for onAlert callbacks.
+	// Prevents goroutine exhaustion during alert storms (e.g. 500+ firing at once).
+	alertWorkerPool := engine.NewAlertWorkerPool(64)
+	eventSvc.SetWorkerPool(alertWorkerPool)
+
 	// Initialize Redis client (optional — graceful degradation if unavailable)
 	var redisClient *sredis.Client
 	var stateStore engine.StateStore
@@ -396,6 +401,9 @@ func main() {
 			evaluator.SetStateStore(stateStore)
 		}
 
+		// Wire bounded worker pool for onAlert callbacks
+		evaluator.SetWorkerPool(alertWorkerPool)
+
 		// Configure sync interval
 		if cfg.Engine.SyncInterval > 0 {
 			evaluator.SetSyncInterval(time.Duration(cfg.Engine.SyncInterval) * time.Second)
@@ -492,22 +500,25 @@ func main() {
 
 	zapLogger.Info("shutting down server...")
 
-	// Stop the alert group manager (flush remaining buffered alerts)
-	alertGroupMgr.Stop()
-
-	// Stop the escalation executor
-	escalationExecutor.Stop()
-
-	// Stop the heartbeat checker
-	heartbeatChecker.Stop()
-
-	// Stop the evaluator
+	// 1. Stop evaluator FIRST — no more onAlert callbacks will fire
 	if evaluator != nil {
 		zapLogger.Info("stopping alert evaluator...")
 		evaluator.Stop()
 	}
 
-	// Shutdown HTTP server first (drain in-flight requests)
+	// 2. Stop heartbeat checker — no more heartbeat-based onAlert
+	heartbeatChecker.Stop()
+
+	// 3. Stop alert group manager (flush remaining buffered alerts)
+	alertGroupMgr.Stop()
+
+	// 4. Stop escalation executor
+	escalationExecutor.Stop()
+
+	// 5. Wait for in-flight worker pool tasks to complete
+	alertWorkerPool.Wait()
+
+	// 6. Shutdown HTTP server (drain in-flight requests)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -515,7 +526,7 @@ func main() {
 		zapLogger.Error("server forced to shutdown", zap.Error(err))
 	}
 
-	// Close Redis connection after HTTP server has drained
+	// 7. Close Redis connection after HTTP server has drained
 	if redisClient != nil {
 		if err := redisClient.Close(); err != nil {
 			zapLogger.Warn("failed to close redis connection", zap.Error(err))

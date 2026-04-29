@@ -40,6 +40,7 @@ type RuleEvaluator struct {
 	queryClient *datasource.QueryClient
 	stateStore  StateStore // optional; nil = in-memory only
 	suppressor  *LevelSuppressor
+	workerPool  AlertWorkerPoolSubmiter // optional bounded goroutine pool
 	onAlert     func(ctx context.Context, event *model.AlertEvent)
 	mu          sync.Mutex
 	stopCh      chan struct{}
@@ -63,6 +64,7 @@ type Evaluator struct {
 	timelineRepo *repository.AlertTimelineRepository
 	queryClient  *datasource.QueryClient
 	stateStore   StateStore              // optional; nil = in-memory only
+	workerPool   AlertWorkerPoolSubmiter // optional bounded goroutine pool
 	evaluators   map[uint]*RuleEvaluator // key: rule ID
 	onAlert      func(ctx context.Context, event *model.AlertEvent)
 	suppressor   *LevelSuppressor
@@ -71,6 +73,12 @@ type Evaluator struct {
 	stopCh       chan struct{}
 	startedAt    time.Time
 	syncInterval time.Duration
+}
+
+// AlertWorkerPoolSubmiter is the subset of AlertWorkerPool used by the evaluator.
+type AlertWorkerPoolSubmiter interface {
+	Submit(ctx context.Context, fn func(context.Context)) bool
+	Wait()
 }
 
 // NewEvaluator creates a new alert evaluation engine.
@@ -114,6 +122,11 @@ func (e *Evaluator) SetOnAlert(fn func(ctx context.Context, event *model.AlertEv
 // If nil, the evaluator operates in memory-only mode.
 func (e *Evaluator) SetStateStore(ss StateStore) {
 	e.stateStore = ss
+}
+
+// SetWorkerPool sets the bounded goroutine pool for onAlert callbacks.
+func (e *Evaluator) SetWorkerPool(p AlertWorkerPoolSubmiter) {
+	e.workerPool = p
 }
 
 // Start begins the evaluation loop:
@@ -289,6 +302,7 @@ func (e *Evaluator) startRuleEvaluator(rule *model.AlertRule, ds *model.DataSour
 		queryClient: e.queryClient,
 		stateStore:  e.stateStore,
 		suppressor:  e.suppressor,
+		workerPool:  e.workerPool,
 		onAlert:     e.onAlert,
 		stopCh:      make(chan struct{}),
 		logger:      e.logger.With(zap.Uint("rule_id", rule.ID), zap.String("rule_name", rule.Name)),
