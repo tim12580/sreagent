@@ -4,10 +4,19 @@
 
 ---
 
-## [v1.16.14] - 2026-04-30
+## [v1.16.15] - 2026-04-30
 
 ### Fixed
-- Explore 页面生产环境白屏：`@intlify/message-compiler` (vue-i18n 依赖) esbuild 压缩产生 `Unterminated closing brace` SyntaxError — 切换到 terser 压缩器
+- **真正的根因修复**：升级 vue-i18n 9.14.0 → 11.4.0，`@intlify/message-compiler` 新版修复了 esbuild 压缩产生的 `Unterminated closing brace` SyntaxError
+- 恢复 esbuild 压缩器（`minify: 'esbuild'`），移除 terser 依赖
+
+### Changed
+- vue-i18n 升级到最新版 11.4.0（兼容，typecheck 通过）
+
+## [v1.16.14] - 2026-04-30
+
+### Fixed (未生效)
+- 尝试修复：切换到 terser 压缩器避开 `@intlify/message-compiler` esbuild 压缩 bug — 但引入了 "Cannot assign to read only property" 新问题
 - Explore 页面简化为纯 HTML 元素，移除 Naive UI 组件依赖
 
 ## [v1.16.13] - 2026-04-30
