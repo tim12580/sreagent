@@ -4,6 +4,11 @@
 
 ---
 
+## [v1.16.13] - 2026-04-30
+
+### Debug
+- Explore 页面移除 TimeRangePicker/RefreshPicker 依赖，用纯文本替代 — 隔离 DatePicker 是否为白屏根因
+
 ## [v1.16.12] - 2026-04-30
 
 ### Fixed

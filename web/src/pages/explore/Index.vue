@@ -5,9 +5,6 @@ import type { DataTableColumns } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { datasourceApi } from '@/api'
 import type { DataSource, QueryResponse, LogEntry } from '@/types'
-import TimeRangePicker from '@/components/time/TimeRangePicker.vue'
-import RefreshPicker from '@/components/time/RefreshPicker.vue'
-import { useTimeRange } from '@/composables/useTimeRange'
 
 onErrorCaptured((err, _instance, info) => {
   console.error('[Explore] render error:', err, info)
@@ -26,14 +23,12 @@ const { t } = useI18n()
 const datasources = ref<DataSource[]>([])
 const selectedDsId = ref<number | null>(null)
 
-const {
-  timeRange,
-  isRelative,
-  relativeDuration,
-  autoRefreshInterval,
-  setRelative,
-  setAbsolute,
-} = useTimeRange('1h')
+// Simple time range — avoid DatePicker dependency while debugging
+const timeRange = ref<{ start: number; end: number }>({
+  start: Date.now() - 3600000,
+  end: Date.now(),
+})
+const autoRefreshInterval = ref<number | null>(null)
 
 const selectedDs = computed(() =>
   datasources.value.find(ds => ds.id === selectedDsId.value) || null
@@ -246,17 +241,9 @@ console.log('[Explore] setup complete')
         <span class="page-subtitle">{{ t('explore.subtitle') }}</span>
       </div>
       <div class="header-right">
-        <TimeRangePicker
-          :time-range="timeRange"
-          :is-relative="isRelative"
-          :relative-duration="relativeDuration"
-          @set-relative="setRelative"
-          @set-absolute="setAbsolute"
-        />
-        <RefreshPicker
-          :value="autoRefreshInterval"
-          @update:value="(v: number | null) => autoRefreshInterval = v"
-        />
+        <span style="font-size:12px;color:var(--sre-text-tertiary)">
+          {{ t('explore.timeRange') || 'Last 1 hour' }}
+        </span>
       </div>
     </div>
 
