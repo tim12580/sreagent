@@ -1,162 +1,51 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, onErrorCaptured } from 'vue'
-import { NSelect, NInput, NInputNumber, NButton, NDataTable, NEmpty, NSpin, NTag, NAlert } from 'naive-ui'
-import type { DataTableColumns } from 'naive-ui'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { datasourceApi } from '@/api'
-import type { DataSource, QueryResponse, LogEntry } from '@/types'
-
-onErrorCaptured((err, _instance, info) => {
-  console.error('[Explore] render error:', err, info)
-  return false // prevent error propagation
-})
-
-// Diagnostic: catch any setup-time errors
-const setupError = ref<string | null>(null)
-try {
-  console.log('[Explore] setup start')
-} catch (e: any) {
-  setupError.value = 'setup log failed: ' + String(e)
-}
+import type { DataSource } from '@/types'
 
 const { t } = useI18n()
+
+// --- data ---
 const datasources = ref<DataSource[]>([])
 const selectedDsId = ref<number | null>(null)
-
-// Simple time range — avoid DatePicker dependency while debugging
-const timeRange = ref<{ start: number; end: number }>({
-  start: Date.now() - 3600000,
-  end: Date.now(),
-})
-const autoRefreshInterval = ref<number | null>(null)
-
-const selectedDs = computed(() =>
-  datasources.value.find(ds => ds.id === selectedDsId.value) || null
-)
-
-const isLogsMode = computed(() => selectedDs.value?.type === 'victorialogs')
-
-const placeholderText = computed(() => {
-  if (!selectedDs.value) return t('explore.enterExpression')
-  switch (selectedDs.value.type) {
-    case 'victorialogs': return t('explore.logQueryPlaceholder')
-    case 'zabbix': return t('explore.zabbixPlaceholder')
-    default: return t('explore.promqlPlaceholder')
-  }
-})
-
-const stepAuto = computed(() => {
-  const diff = (timeRange.value.end - timeRange.value.start) / 1000
-  if (diff <= 3600) return '15s'
-  if (diff <= 21600) return '1m'
-  if (diff <= 86400) return '5m'
-  return '15m'
-})
-
-// Query state
 const expression = ref('')
 const loading = ref(false)
 const errorMsg = ref('')
-const series = ref<QueryResponse['series']>([])
-const logEntries = ref<LogEntry[]>([])
+const logEntries = ref<any[]>([])
+const metricRows = ref<any[]>([])
 const logTotal = ref(0)
 const logTruncated = ref(false)
 const logLimit = ref(200)
 
-const hasResults = computed(() => series.value.length > 0 || logEntries.value.length > 0)
+const selectedDs = computed(() => datasources.value.find(d => d.id === selectedDsId.value))
+const isLogs = computed(() => selectedDs.value?.type === 'victorialogs')
 
-// Metrics table
-const metricsColumns = computed<DataTableColumns<any>>(() => [
-  {
-    title: t('explore.metricName') || 'Metric',
-    key: 'name',
-    ellipsis: { tooltip: true },
-    render(row: any) { return (row.labels && row.labels.__name__) || '-' },
-  },
-  {
-    title: t('explore.value') || 'Value',
-    key: 'value',
-    width: 140,
-    render(row: any) {
-      const v = row.value
-      return typeof v === 'number' ? v.toFixed(4) : '-'
-    },
-  },
-  {
-    title: t('explore.labelsHeader') || 'Labels',
-    key: 'labels',
-    ellipsis: { tooltip: true },
-    render(row: any) {
-      const lbs: Record<string, string> = {}
-      if (row.labels) {
-        for (const k of Object.keys(row.labels)) {
-          if (k !== '__name__') lbs[k] = row.labels[k]
-        }
-      }
-      const parts = Object.entries(lbs).map(([k, v]) => `${k}=${v}`)
-      return parts.length ? parts.join(' ') : '-'
-    },
-  },
-])
+// --- time ---
+const now = ref(Date.now())
+const rangeH = ref(1)
+const timeStart = computed(() => now.value - rangeH.value * 3600000)
+const timeEnd = computed(() => now.value)
 
-const tableData = computed(() => {
-  const rows: any[] = []
-  let idx = 0
-  for (const s of series.value) {
-    const vals = s.values || []
-    for (const v of vals) {
-      rows.push({ labels: s.labels || {}, value: v.value, _key: idx++ })
-    }
-  }
-  return rows
-})
-
-// Log columns — plain string returns, no h() usage
-const logColumns = computed<DataTableColumns<LogEntry>>(() => [
-  {
-    title: t('explore.logTime') || 'Time',
-    key: 'timestamp',
-    width: 200,
-    render(row: any) {
-      const ts = row.timestamp
-      if (!ts) return '-'
-      try { return new Date(ts).toLocaleString() } catch { return String(ts) }
-    },
-  },
-  {
-    title: t('explore.logMessage') || 'Message',
-    key: 'message',
-    ellipsis: { tooltip: true },
-    render(row: any) { return row.message || '-' },
-  },
-  {
-    title: t('explore.logLabels') || 'Labels',
-    key: 'labels',
-    width: 400,
-    render(row: any) {
-      const labels = row.labels
-      if (!labels || Object.keys(labels).length === 0) return '-'
-      return Object.entries(labels).slice(0, 5).map(([k, v]) => `${k}=${v}`).join('  ')
-    },
-  },
-])
-
-// Execute query
-async function executeQuery() {
-  if (!selectedDsId.value || !expression.value.trim()) return
-
-  loading.value = true
-  errorMsg.value = ''
-  series.value = []
-  logEntries.value = []
-
+// --- actions ---
+async function loadDs() {
   try {
-    const tr = timeRange.value
-    if (isLogsMode.value) {
+    const res = await datasourceApi.list({ page: 1, page_size: 100 })
+    const list = res.data?.data?.list
+    datasources.value = (Array.isArray(list) ? list : []).filter((d: any) => d.is_enabled)
+    if (datasources.value.length && !selectedDsId.value) selectedDsId.value = datasources.value[0].id
+  } catch { /* ignore */ }
+}
+
+async function run() {
+  if (!selectedDsId.value || !expression.value.trim()) return
+  loading.value = true; errorMsg.value = ''; metricRows.value = []; logEntries.value = []
+  try {
+    if (isLogs.value) {
       const res = await datasourceApi.logQuery(selectedDsId.value, {
         expression: expression.value,
-        start: Math.floor(tr.start / 1000),
-        end: Math.floor(tr.end / 1000),
+        start: Math.floor(timeStart.value / 1000),
+        end: Math.floor(timeEnd.value / 1000),
         limit: logLimit.value,
       })
       const data = res.data.data
@@ -164,291 +53,152 @@ async function executeQuery() {
       logTotal.value = data.total || 0
       logTruncated.value = data.truncated || false
     } else {
+      const diff = (timeEnd.value - timeStart.value) / 1000
+      const step = diff <= 3600 ? '15s' : diff <= 21600 ? '1m' : diff <= 86400 ? '5m' : '15m'
       const res = await datasourceApi.rangeQuery(selectedDsId.value, {
         expression: expression.value,
-        start: Math.floor(tr.start / 1000),
-        end: Math.floor(tr.end / 1000),
-        step: stepAuto.value,
+        start: Math.floor(timeStart.value / 1000),
+        end: Math.floor(timeEnd.value / 1000),
+        step,
       })
-      const data = res.data.data
-      series.value = data.series || []
+      const series = res.data.data?.series || []
+      const rows: any[] = []
+      let idx = 0
+      for (const s of series) {
+        for (const v of (s.values || [])) {
+          rows.push({ name: (s.labels?.__name__) || '-', value: typeof v.value === 'number' ? v.value.toFixed(4) : '-', labels: s.labels, _key: idx++ })
+        }
+      }
+      metricRows.value = rows
     }
-  } catch (err: any) {
-    errorMsg.value = err?.response?.data?.message || err?.message || t('explore.queryFailed')
-  } finally {
-    loading.value = false
-  }
+  } catch (e: any) {
+    errorMsg.value = e?.response?.data?.message || e?.message || 'Query failed'
+  } finally { loading.value = false }
 }
 
-function handleKeyup(e: KeyboardEvent) {
-  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-    e.preventDefault()
-    executeQuery()
-  }
+function onKey(e: KeyboardEvent) {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); run() }
 }
 
-watch(selectedDsId, () => {
-  expression.value = ''
-  series.value = []
-  logEntries.value = []
-  errorMsg.value = ''
-})
+watch(selectedDsId, () => { expression.value = ''; metricRows.value = []; logEntries.value = []; errorMsg.value = '' })
 
-// Auto-refresh
-let refreshTimer: ReturnType<typeof setInterval> | null = null
-watch(autoRefreshInterval, (val) => {
-  if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null }
-  if (val && val > 0) {
-    refreshTimer = setInterval(executeQuery, val * 1000)
-  }
-})
+let timer: any = null
+watch(() => rangeH.value, () => { now.value = Date.now() }) // no auto-refresh for now
 
-const datasourceOptions = computed(() =>
-  datasources.value.map(ds => ({ label: ds.name, value: ds.id }))
-)
-
-async function fetchDatasources() {
-  try {
-    const res = await datasourceApi.list({ page: 1, page_size: 100 })
-    const list = res.data?.data?.list
-    datasources.value = (Array.isArray(list) ? list : []).filter((ds: any) => ds.is_enabled)
-    if (datasources.value.length > 0 && !selectedDsId.value) {
-      selectedDsId.value = datasources.value[0].id
-    }
-  } catch {
-    // ignore
-  }
-}
-
-onMounted(() => {
-  console.log('[Explore] mounted')
-  fetchDatasources()
-})
-
-console.log('[Explore] setup complete')
+onMounted(loadDs)
 </script>
 
 <template>
-  <div class="explore-page">
-    <!-- Diagnostic banner -->
-    <div v-if="setupError" style="background: orange; padding: 12px; margin-bottom: 12px; border-radius: 4px;">
-      DIAGNOSTIC: {{ setupError }}
-    </div>
-    <!-- Header -->
-    <div class="explore-header">
-      <div class="header-left">
-        <h2 class="page-title">{{ t('explore.title') }}</h2>
-        <span class="page-subtitle">{{ t('explore.subtitle') }}</span>
+  <div style="max-width:1600px;padding:20px;">
+    <!-- header -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div>
+        <h2 style="font-size:22px;font-weight:600;margin:0;">{{ t('explore.title') }}</h2>
+        <span style="font-size:13px;color:var(--sre-text-secondary)">{{ t('explore.subtitle') }}</span>
       </div>
-      <div class="header-right">
-        <span style="font-size:12px;color:var(--sre-text-tertiary)">
-          {{ t('explore.timeRange') || 'Last 1 hour' }}
-        </span>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <select v-model.number="rangeH" style="padding:4px 8px;border-radius:4px;border:1px solid var(--sre-border);background:var(--sre-bg-card);color:var(--sre-text-primary);font-size:12px;">
+          <option :value="1">Last 1 hour</option>
+          <option :value="6">Last 6 hours</option>
+          <option :value="24">Last 24 hours</option>
+          <option :value="168">Last 7 days</option>
+        </select>
       </div>
     </div>
 
-    <!-- Datasource selector -->
-    <div class="ds-select-row">
-      <NSelect
-        v-model:value="selectedDsId"
-        :options="datasourceOptions"
-        :placeholder="t('explore.selectDatasource')"
-        filterable
-        style="width: 320px"
-        size="small"
-      />
-      <span v-if="selectedDs" class="ds-type-badge">
-        {{ selectedDs.type }}
-      </span>
+    <!-- datasource selector -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      <select v-model="selectedDsId" style="width:320px;padding:6px 10px;border-radius:6px;border:1px solid var(--sre-border);background:var(--sre-bg-card);color:var(--sre-text-primary);font-size:13px;">
+        <option :value="null" disabled>{{ t('explore.selectDatasource') }}</option>
+        <option v-for="ds in datasources" :key="ds.id" :value="ds.id">{{ ds.name }}</option>
+      </select>
+      <span v-if="selectedDs" style="font-size:11px;background:var(--sre-bg-hover,#f0f0f0);padding:2px 8px;border-radius:4px;font-family:monospace;color:var(--sre-text-tertiary);">{{ selectedDs.type }}</span>
     </div>
 
-    <!-- No datasource yet -->
-    <div v-if="!selectedDsId" class="empty-state">
-      <NEmpty :description="t('explore.selectDatasource')" />
+    <!-- no datasource -->
+    <div v-if="!selectedDsId" style="display:flex;align-items:center;justify-content:center;min-height:200px;color:var(--sre-text-tertiary);">
+      {{ t('explore.selectDatasource') }}
     </div>
 
-    <!-- Query bar -->
-    <div v-if="selectedDsId" class="query-bar">
-      <NInput
-        v-model:value="expression"
-        type="textarea"
-        :placeholder="placeholderText"
-        size="small"
-        :autosize="{ minRows: 1, maxRows: 6 }"
-        style="flex: 1"
-        @keyup="handleKeyup"
-      />
-      <NInputNumber
-        v-if="isLogsMode"
-        v-model:value="logLimit"
-        :min="10"
-        :max="10000"
-        size="small"
-        style="width: 110px"
-        :placeholder="t('explore.limit')"
-      />
-      <NButton
-        type="primary"
-        size="small"
-        :loading="loading"
-        :disabled="!expression.trim()"
-        @click="executeQuery"
-      >
-        {{ t('explore.runQuery') }}
-      </NButton>
-      <span class="query-hint">Ctrl+Enter</span>
+    <!-- query bar -->
+    <div v-if="selectedDsId" style="display:flex;align-items:flex-start;gap:8px;padding:12px 16px;background:var(--sre-bg-card);border-radius:8px;border:1px solid var(--sre-border);margin-bottom:12px;">
+      <textarea
+        v-model="expression"
+        :placeholder="isLogs ? t('explore.logQueryPlaceholder') : t('explore.promqlPlaceholder')"
+        style="flex:1;padding:6px 10px;border-radius:4px;border:1px solid var(--sre-border);background:var(--sre-bg-sunken);color:var(--sre-text-primary);font-size:13px;font-family:monospace;resize:vertical;min-height:32px;"
+        rows="1"
+        @keyup="onKey"
+      ></textarea>
+      <input v-if="isLogs" v-model.number="logLimit" type="number" min="10" max="10000" style="width:110px;padding:6px 10px;border-radius:4px;border:1px solid var(--sre-border);background:var(--sre-bg-sunken);color:var(--sre-text-primary);font-size:13px;" :placeholder="t('explore.limit')" />
+      <button :disabled="loading || !expression.trim()" @click="run" style="padding:6px 16px;border-radius:6px;border:none;background:var(--sre-primary,#18a058);color:white;font-size:13px;cursor:pointer;white-space:nowrap;">
+        {{ loading ? '...' : t('explore.runQuery') }}
+      </button>
+      <span style="font-size:11px;color:var(--sre-text-tertiary);align-self:center;white-space:nowrap;">Ctrl+Enter</span>
     </div>
 
-    <!-- Error -->
-    <NAlert
-      v-if="errorMsg"
-      type="error"
-      :show-icon="true"
-      closable
-      style="margin: 12px 0"
-      @close="errorMsg = ''"
-    >
-      {{ errorMsg }}
-    </NAlert>
+    <!-- error -->
+    <div v-if="errorMsg" style="padding:10px 14px;border-radius:6px;background:rgba(208,48,80,0.12);color:#d03050;font-size:13px;margin-bottom:12px;">{{ errorMsg }}</div>
 
-    <!-- Results: Metrics table -->
-    <div v-if="hasResults && !isLogsMode" class="results-section">
-      <div class="results-header">
-        <span class="results-count">
-          {{ t('explore.table') }} — {{ tableData.length }} {{ t('explore.entries') || 'rows' }}
-        </span>
+    <!-- metric results -->
+    <div v-if="metricRows.length && !isLogs" style="background:var(--sre-bg-card);border-radius:12px;padding:16px;">
+      <div style="font-size:13px;color:var(--sre-text-secondary);margin-bottom:12px;">{{ t('explore.table') }} — {{ metricRows.length }} rows</div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr>
+          <th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--sre-border);color:var(--sre-text-secondary);">{{ t('explore.metricName') || 'Metric' }}</th>
+          <th style="text-align:right;padding:6px 8px;border-bottom:1px solid var(--sre-border);color:var(--sre-text-secondary);width:140px;">{{ t('explore.value') || 'Value' }}</th>
+          <th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--sre-border);color:var(--sre-text-secondary);">{{ t('explore.labelsHeader') || 'Labels' }}</th>
+        </tr></thead>
+        <tbody>
+          <tr v-for="r in metricRows" :key="r._key" style="border-bottom:1px solid rgba(128,128,128,0.06);">
+            <td style="padding:6px 8px;color:var(--sre-text-primary);">{{ r.name }}</td>
+            <td style="padding:6px 8px;text-align:right;font-family:monospace;color:var(--sre-text-primary);">{{ r.value }}</td>
+            <td style="padding:6px 8px;color:var(--sre-text-secondary);font-size:11px;">{{ formatLabels(r.labels) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- log results -->
+    <div v-if="isLogs && logEntries.length" style="background:var(--sre-bg-card);border-radius:12px;padding:16px;">
+      <div style="font-size:13px;color:var(--sre-text-secondary);margin-bottom:12px;">
+        {{ t('explore.showing') }} {{ logEntries.length }}
+        <template v-if="logTotal > 0"> / {{ logTotal }}</template>
+        {{ t('explore.entries') }}
+        <span v-if="logTruncated" style="margin-left:8px;padding:2px 6px;border-radius:4px;background:rgba(240,160,32,0.15);color:#f0a020;font-size:11px;">{{ t('explore.truncated') }}</span>
       </div>
-      <NDataTable
-        :columns="metricsColumns"
-        :data="tableData"
-        :max-height="600"
-        :row-key="(row: any) => (row as any)._key"
-        size="small"
-        striped
-      />
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead><tr>
+          <th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--sre-border);color:var(--sre-text-secondary);width:200px;">{{ t('explore.logTime') || 'Time' }}</th>
+          <th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--sre-border);color:var(--sre-text-secondary);">{{ t('explore.logMessage') || 'Message' }}</th>
+        </tr></thead>
+        <tbody>
+          <tr v-for="e in logEntries" :key="e._key" style="border-bottom:1px solid rgba(128,128,128,0.06);">
+            <td style="padding:6px 8px;color:var(--sre-text-secondary);white-space:nowrap;font-size:11px;">{{ fmtTs(e.timestamp) }}</td>
+            <td style="padding:6px 8px;color:var(--sre-text-primary);word-break:break-all;">{{ e.message || '-' }}</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
-    <!-- Results: Logs table -->
-    <div v-if="isLogsMode && logEntries.length > 0" class="results-section">
-      <div class="results-header">
-        <span class="results-count">
-          {{ t('explore.showing') }} {{ logEntries.length }}
-          <template v-if="logTotal > 0"> / {{ logTotal }}</template>
-          {{ t('explore.entries') }}
-          <NTag v-if="logTruncated" type="warning" size="small" style="margin-left: 8px">
-            {{ t('explore.truncated') }}
-          </NTag>
-        </span>
-      </div>
-      <NDataTable
-        :columns="logColumns"
-        :data="logEntries"
-        :max-height="600"
-        :row-key="(row: any) => (row as any)._key"
-        :scrollbar-props="{ trigger: 'hover' }"
-        size="small"
-        striped
-      />
-    </div>
-
-    <!-- Empty log result -->
-    <div v-if="isLogsMode && !loading && !errorMsg && expression.trim() && logEntries.length === 0" class="empty-state">
-      <NEmpty :description="t('explore.logEmptyDesc')" />
-    </div>
-
-    <!-- No metrics results yet -->
-    <div v-if="!isLogsMode && !loading && !errorMsg && expression.trim() && !hasResults" class="empty-state">
-      <NEmpty :description="t('explore.logEmptyDesc') || 'No results'" />
-    </div>
-
-    <!-- Loading -->
-    <div v-if="loading" class="loading-wrap">
-      <NSpin size="medium" />
+    <!-- empty -->
+    <div v-if="!loading && !errorMsg && expression.trim() && !metricRows.length && !logEntries.length" style="display:flex;align-items:center;justify-content:center;min-height:200px;color:var(--sre-text-tertiary);">
+      {{ t('explore.logEmptyDesc') || 'No results' }}
     </div>
   </div>
 </template>
 
-<style scoped>
-.explore-page {
-  max-width: 1600px;
-  padding: 20px;
+<script lang="ts">
+// helper functions (not reactive, outside setup)
+function formatLabels(lbs: any): string {
+  if (!lbs) return '-'
+  const parts: string[] = []
+  for (const k of Object.keys(lbs)) {
+    if (k !== '__name__') parts.push(`${k}=${lbs[k]}`)
+  }
+  return parts.length ? parts.join(' ') : '-'
 }
-.explore-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
+function fmtTs(ts: any): string {
+  if (!ts) return '-'
+  try { return new Date(ts).toLocaleString() } catch { return String(ts) }
 }
-.header-left {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-}
-.page-title {
-  font-size: 22px;
-  font-weight: 600;
-  margin: 0;
-}
-.page-subtitle {
-  font-size: 13px;
-  color: var(--sre-text-secondary);
-}
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.ds-select-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-.ds-type-badge {
-  font-size: 11px;
-  color: var(--sre-text-tertiary);
-  background: var(--sre-bg-hover, #f0f0f0);
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-family: monospace;
-}
-.query-bar {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 12px 16px;
-  background: var(--sre-bg-card);
-  border-radius: 8px;
-  border: 1px solid var(--sre-border);
-}
-.query-hint {
-  font-size: 11px;
-  color: var(--sre-text-tertiary);
-  align-self: center;
-  white-space: nowrap;
-}
-.results-section {
-  margin-top: 16px;
-  background: var(--sre-bg-card);
-  border-radius: 12px;
-  padding: 16px;
-}
-.results-header {
-  margin-bottom: 12px;
-}
-.results-count {
-  font-size: 13px;
-  color: var(--sre-text-secondary);
-}
-.empty-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 200px;
-}
-.loading-wrap {
-  display: flex;
-  justify-content: center;
-  padding: 40px;
-}
-</style>
+</script>
