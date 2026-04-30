@@ -4,6 +4,12 @@
 
 ---
 
+## [v1.16.14] - 2026-04-30
+
+### Fixed
+- Explore 页面生产环境白屏：`@intlify/message-compiler` (vue-i18n 依赖) esbuild 压缩产生 `Unterminated closing brace` SyntaxError — 切换到 terser 压缩器
+- Explore 页面简化为纯 HTML 元素，移除 Naive UI 组件依赖
+
 ## [v1.16.13] - 2026-04-30
 
 ### Debug
